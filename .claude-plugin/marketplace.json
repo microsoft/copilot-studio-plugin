@@ -1,0 +1,17 @@
+{
+  "name": "skills-for-copilot-studio",
+  "owner": {
+    "name": "Microsoft Copilot Studio CAT Team"
+  },
+  "metadata": {
+    "description": "Microsoft Copilot Studio plugins for AI coding agents"
+  },
+  "plugins": [
+    {
+      "name": "copilot-studio",
+      "description": "Microsoft Copilot Studio YAML authoring toolkit. Create, edit, validate, and test Copilot Studio agents using YAML files.",
+      "version": "2.0.0",
+      "source": "./"
+    }
+  ]
+}
