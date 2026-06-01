@@ -648,6 +648,16 @@ Examples:
 
 A troubleshooting guide can be knowledge. A troubleshooting assistant is usually a skill that uses that knowledge.
 
+## Skill effectiveness heuristics
+
+Use skills deliberately rather than treating them as a default container for every procedure.
+
+- Prefer curated skills. Curated, task-relevant procedural modules can substantially improve agent performance, with average task pass rates increasing by about 16 percentage points in observed evaluations.
+- Do not ask the generated agent to create its own skills or procedural knowledge before solving tasks. Self-generated skills are usually unchanged or worse than no skills at all.
+- Match skills to the task and domain. Skills help most when the task requires a specific workflow, procedure, or domain practice; tasks solvable from general knowledge may see little benefit or even negative impact.
+- Keep the skill set focused. A small set of relevant skills, usually 2-3 for a focused agent, is better than a large comprehensive package that increases routing and context burden.
+- Use skills to compensate for model scale when appropriate. Smaller models with the right curated skills can match or exceed larger models operating without skills.
+
 ---
 
 # 11. Handling deterministic logic
@@ -1029,6 +1039,7 @@ Before accepting the generated agent design, the mechanism should check:
 | Knowledge grounding | Are factual sources identified and described? |
 | Tool necessity | Does every tool perform live data, action, or deterministic computation? |
 | Skill quality | Does every skill represent a reusable procedure? |
+| Skill focus | Are skills curated, task-relevant, and limited to the smallest effective set rather than self-generated or overly comprehensive? |
 | Side-effect safety | Are create/update/send/delete/payment actions marked for confirmation? |
 | Determinism | Are business rules implemented as code/tools rather than vague prompts? |
 | Overlap | Are similar skills/tools clearly distinguished? |
