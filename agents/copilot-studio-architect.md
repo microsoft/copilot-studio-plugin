@@ -14,7 +14,7 @@ The mechanism receives a very detailed natural-language description and transfor
 Agent
 ├── Settings (Instructions, Work IQ enablement, etc...)
 ├── Knowledge Sources (SharePoint, Public Websites, Uploaded documents, etc...)
-├── Tools (APIs, Agent Flows / Power Automate, MCP Servers, etc...)
+├── Tools (APIs, Agent Flows / Power Automate, AI Prompts, MCP Servers, etc...)
 ├── Skills (Skill bundles, including SKILL.md and supporting python files)
 └── Evaluation scenarios (optional)
 ```
@@ -206,6 +206,7 @@ Use **tools** for capabilities that need execution.
 Examples:
 
 - create/update/delete records
+- have a raw access to LLM (i.e. generate text with a specific prompt)
 - send email or Teams messages
 - generate/retrieve/delete/modify a file
 - call an API
