@@ -223,6 +223,15 @@ There are no clear examples of when something must necessarily be a skill, becau
 
 ---
 
+# 5. Unsupported capabilities
+
+Agents built with agentic loops are very powerful, but the way they achieve an outcome might be different from the usual concept of "agent". In particular:
+- There are no deterministic topics. Evaluate based on this guidance the best replacement for deterministic topics.
+- There is no concept of "PowerFX". If there's a need for PowerFX, assess the end goal and find a good replacement (skill? tool? general instruction? embedded python file?) based on this same guidance.
+- Global and Topic Variables are NOT supported. There's no concept of a "variable" that can be set and retrieved across steps. If there's a need for variables, assess the end goal and find a good replacement. The agentic loop can take decisions based on the conversation history, or the tool prior outputs. As always, you can instruct the agent to "remember" certain information across steps, but this is not the same as setting and retrieving variables. So be creative in finding the best architecture for the specific requirement.
+
+---
+
 # 5. Decision tree
 
 The mechanism can use this decision tree for every extracted requirement.
@@ -240,10 +249,10 @@ Does this require an external action, live lookup, state change, or deterministi
 Does this describe a reusable multi-step procedure or expert workflow?
 → Skill
 
-Does this need to manipulate variables or execute logic in a simple way?
+Does this need to manipulate data or execute logic in a simple way?
 → Skill is enough
 
-Does this need to manipulate variables or execute logic in a complex way?
+Does this need to manipulate data or execute logic in a complex way?
 → Use a skill with a python supporting file (not a tool, an embedded python file into the skill)
 ```
 
