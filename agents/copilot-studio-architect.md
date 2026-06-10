@@ -415,10 +415,11 @@ Before accepting the generated agent design and reporting it to the user, the me
 
 Skills are powerful, but only when used deliberately. The mechanism should apply the following heuristics when deciding whether and how to generate skills.
 
-- **Author skills deliberately; do not rely on the agent inventing them.** Well-designed, curated procedural skills meaningfully improve task reliability. The mechanism should design these up front as part of the agent, rather than expecting the agent to synthesize its own procedures at runtime — self-generated, on-the-fly procedures tend not to help and can degrade performance compared to having none.
+- **Prefer curated skills.** Well-designed, curated procedural skills meaningfully improve task reliability for scenarios known at design time. The mechanism should design these up front as part of the agent, rather than expecting the agent to synthesize its own procedures at runtime — self-generated, on-the-fly procedures tend not to help and can degrade performance compared to having none.
 
-- **Add a skill only when the task genuinely needs a procedure.** Skills pay off on tasks that require a specific workflow, sequence, or domain procedure. For tasks the model can already solve from general knowledge, adding a skill provides little benefit and can even get in the way. When in doubt, prefer no skill over a speculative one.
+- **Add a skill only when the task genuinely needs a procedure.** Skills pay off on tasks that require a specific workflow, sequence, or domain procedure. For tasks the model can already solve from general/model knowledge, adding a skill provides little benefit and can even get in the way. When in doubt (i.e. the agent already has all tools and skills, and the scenario is particularly simple or doesn't need a strict guide), prefer no skill over a speculative one.
 
 - **Prefer a few focused skills over one comprehensive package.** A small set of tightly scoped, relevant skills outperforms a large catalog. Each skill should cover one clear procedure; resist bundling many loosely related tasks into a single sprawling skill.
 
 - **Good skills can offset model scale.** Appropriate procedural skills can let a smaller or cheaper model match the behavior of a much larger one. When reliability on a specific workflow matters, investing in a clear skill is often more effective than relying on raw model capability.
+
