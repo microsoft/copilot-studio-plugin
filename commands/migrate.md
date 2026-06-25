@@ -65,7 +65,14 @@ After the init sub-agent completes, confirm the target agent's `agent.mcs.yml` e
 
 With the source agent available locally, delegate the description to the **Copilot Studio Describer** sub-agent (you MUST use the best of the bests AI model, high reasoning effort). Give it the selected source agent path explicitly, not the newly initialized target agent path. It is read-only: it reads the source agent's files, asks any needed clarification questions, and produces a detailed descriptive report.
 
-### 6. Propose Migration Steps
+### 6. Migrate tools and actions
+The tool migration process converts the legacy YAML format of actions (located in the \actions folder in the legacy agent) to the new format (to be placed in capabilities\tools in the new agent). The procedure is as follows:
+Step 1: Check for legacy actions. Verify if the \actions folder exists in the legacy agent. If it does not exist, no actions need to be migrated; you can proceed directly to the next steps of the migration.
+Step 2: Prepare the destination folder. If the \actions folder exists, check if the capabilities\tools folder exists in the new agent. If it does not exist, create it.
+Step 3: Run the migration script. Execute the migration script: node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder>
+The script will convert all connector and MCP servers, but will automatically skip any workflows, AI Prompts, or other unsupported actions. If the script encounters unsupported actions, do not worry. Simply notify the Architect agent in the subsequent steps so that the logic can be manually refactored.
+
+### 7. Propose Migration Steps
 After the describer produces its report, give the agent description as input specs for the **Copilot Studio Dracarys Architect** sub-agent (you MUST use the best of the bests AI model, high reasoning effort), and ask it to produce a detailed design for an agentic-loop-based agent that would implement the same behavior, including instructions, knowledge, tools, and skills. If the describer report identifies any gaps or uncertainties in understanding the original agent, highlight those to the architect and ask it to make reasonable assumptions to fill those gaps in order to produce a complete design.
 
 ---
