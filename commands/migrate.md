@@ -49,7 +49,7 @@ If the agent is not present locally, delegate the clone to the **Copilot Studio 
 
 ### 4. Initialize the migration target files
 
-With the source agent available locally, read the selected source agent's display name from `agent.mcs.yml` under `displayName`.
+With the source agent available locally, read the selected source agent's display name from `agent.mcs.yml` under `displayName`, and read the target environment ID from the selected source agent's `.mcs\conn.json` under `EnvironmentId`.
 
 You'd need to initialize the migrated agent, and for its display name you should choose exactly:
 
@@ -57,9 +57,11 @@ You'd need to initialize the migrated agent, and for its display name you should
 NEW <source displayName>
 ```
 
-Delegate initialization to the **Copilot Studio Init** sub-agent (you can use a good, mid-tier AI model). Tell it the exact migrated agent display name and that its only job is to create the new empty Dataverse solution, create the empty Copilot Studio target agent in that solution, clone the target agent locally, and push the untouched empty baseline. It must not migrate or edit the source agent content.
+Use a new target project directory in the workspace named exactly like the migrated agent display name unless the user explicitly supplied a different directory.
 
-After the init sub-agent completes, confirm the target agent's `agent.mcs.yml` exists before continuing. Keep the selected source agent path for the next step so the newly created empty target agent is not described by mistake. This step MUST be completed before proposing and implementing migration steps, but can be run in parallel with the "describe" step. The only requirement is that it should complete before step 6, so the migration design can be implemented in the newly created target agent.
+Delegate initialization to the **Copilot Studio Init** sub-agent (you can use a good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, and environment ID. Its only job is to run `pac copilot init` with `--publisher-prefix catmgr`, `--authoring-mode cli-copilot`, the target project directory, and the environment ID. It must not migrate or edit the source agent content.
+
+After the init sub-agent completes, confirm the target agent's `agent.mcs.yml` exists before continuing. Keep the selected source agent path for the next step so the newly created empty target agent is not described by mistake. This step MUST be completed before migrating tools or implementing migration steps, but can be run in parallel with the "describe" step.
 
 ### 5. Describe the source agent
 
