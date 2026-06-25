@@ -49,23 +49,28 @@ If the agent is not present locally, delegate the clone to the **Copilot Studio 
 
 ### 4. Initialize the migration target files
 
-With the source agent available locally, read the selected source agent's display name from `agent.mcs.yml` under `displayName`.
+With the source agent available locally, read the selected source agent's display name from `agent.mcs.yml` under `displayName`, and read the target environment ID from the selected source agent's `.mcs\conn.json` under `EnvironmentId` (migrating in a different environment is not yet supported).
 
-You'd need to initialize the migrated agent, and for its display name you should choose exactly:
+You'd need to initialize the new/migrated agent, and for its display name you should choose exactly `NEW <source displayName>`
 
-```text
-NEW <source displayName>
-```
+Use a new target project directory in the workspace named exactly like the migrated agent display name (`NEW <source displayName>`) unless the user explicitly supplied a different directory.
 
-Delegate initialization to the **Copilot Studio Init** sub-agent (you can use a good, mid-tier AI model). Tell it the exact migrated agent display name and that its only job is to create the new empty Dataverse solution, create the empty Copilot Studio target agent in that solution, clone the target agent locally, and push the untouched empty baseline. It must not migrate or edit the source agent content.
+Delegate initialization to the **Copilot Studio Init** sub-agent (you can use a good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, and environment ID. Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
 
-After the init sub-agent completes, confirm the target agent's `agent.mcs.yml` exists before continuing. Keep the selected source agent path for the next step so the newly created empty target agent is not described by mistake. This step MUST be completed before proposing and implementing migration steps, but can be run in parallel with the "describe" step. The only requirement is that it should complete before step 6, so the migration design can be implemented in the newly created target agent.
+After the init sub-agent completes, confirm the target agent's `agent.mcs.yml` exists before continuing. This step MUST be completed before migrating tools or implementing migration steps, but can be run in parallel with the "describe old agent" step.
 
 ### 5. Describe the source agent
 
-With the source agent available locally, delegate the description to the **Copilot Studio Describer** sub-agent (you MUST use the best of the bests AI model, high reasoning effort). Give it the selected source agent path explicitly, not the newly initialized target agent path. It is read-only: it reads the source agent's files, asks any needed clarification questions, and produces a detailed descriptive report.
+With the source agent available locally, delegate the description to the **Copilot Studio Describer** sub-agent (you MUST use the best of the bests AI model, high reasoning effort). Give it the selected source agent path explicitly, not the newly initialized target agent path. It is read-only: it reads the source agent's files, asks any needed clarification questions, and produces a detailed descriptive report, that will be later used by the architect sub-agent to create a good migrated agent design.
 
-### 6. Propose Migration Steps
+### 6. Migrate tools and actions
+The tool migration process converts the legacy YAML format of actions (located in the \actions folder in the legacy agent) to the new format (to be placed in capabilities\tools in the new agent). The procedure is as follows:
+Step 1: Check for legacy actions. Verify if the \actions folder exists in the legacy agent. If it does not exist, no actions need to be migrated; you can proceed directly to the next steps of the migration.
+Step 2: Prepare the destination folder. If the \actions folder exists, check if the capabilities\tools folder exists in the new agent. If it does not exist, create it.
+Step 3: Run the migration script. Execute the migration script: node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder>
+The script will convert all connector and MCP servers, but will automatically skip any workflows, AI Prompts, or other unsupported actions. If the script encounters unsupported actions, do not worry. Simply notify the Architect agent in the subsequent steps so that the logic can be manually refactored.
+
+### 7. Propose Migration Steps
 After the describer produces its report, give the agent description as input specs for the **Copilot Studio Dracarys Architect** sub-agent (you MUST use the best of the bests AI model, high reasoning effort), and ask it to produce a detailed design for an agentic-loop-based agent that would implement the same behavior, including instructions, knowledge, tools, and skills. If the describer report identifies any gaps or uncertainties in understanding the original agent, highlight those to the architect and ask it to make reasonable assumptions to fill those gaps in order to produce a complete design.
 
 ---
