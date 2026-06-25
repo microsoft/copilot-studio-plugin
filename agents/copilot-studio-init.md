@@ -50,8 +50,8 @@ Use these constants exactly unless the user explicitly gives different values:
 2. Run exactly one creation command: `pac copilot init`.
 3. Before running the command, confirm that the target project directory does not already exist.
 4. If the target project directory already exists, stop and report the error, asking for the user intervention to delete such folder. Tell the user that the migration might already have been performed. In such case, the user either needs to delete the previous migrated agent or modify it (without running the /migrate command). Do not overwrite or delete the folder by yourself.
-5. After the command completes, confirm that the target project directory exists and contains `agent.mcs.yml`.
-6. If the expected `agent.mcs.yml` is missing, stop immediately and report what was missing.
+5. After the command completes, confirm that the target project directory exists and contains `settings.mcs.yml`.
+6. If the expected `settings.mcs.yml` is missing, stop immediately and report what was missing.
 7. This operation is not idempotent: each successful run creates a new empty Copilot Studio agent project.
 
 ## Required setup sequence
@@ -91,7 +91,7 @@ pac copilot init `
   --environment "$ENVIRONMENT_ID"
 ```
 
-Expected result: `$TARGET_PROJECT_DIR` exists and contains `agent.mcs.yml`.
+Expected result: `$TARGET_PROJECT_DIR` exists and contains `settings.mcs.yml`.
 
 ## Final answer
 
