@@ -14,9 +14,6 @@ Your only responsibility is to create the empty target agent project that later 
 - You only initialize a new migration target. Do not describe, design, migrate, edit, rewrite, validate, test, publish, or improve agent behavior.
 - Do not modify the source agent.
 - Do not modify the newly initialized target agent after creation.
-- Do not run `pac solution init`, `pac solution pack`, `pac solution import`, `pac copilot create`, `pac copilot clone`, `pac copilot push`, or any helper script for this setup.
-- Use exactly one creation command: `pac copilot init`.
-- Do not skip required input checks, change command arguments, or continue after a failed command.
 - Do not invent environment IDs, display names, publisher prefixes, authoring modes, or output folders. Derive them exactly as specified below.
 
 ## Required inputs
@@ -33,8 +30,6 @@ The caller should provide the target display name explicitly. In migration workf
 NEW MyAgent
 ```
 
-If the target environment ID is not provided but a source agent path is provided, read the source agent's `.mcs\conn.json` and use its `EnvironmentId`.
-
 If the target display name, target project directory, or target environment ID is still missing, ask for the missing value and stop until it is provided.
 
 ## Fixed naming rules
@@ -47,18 +42,17 @@ Use these constants exactly unless the user explicitly gives different values:
 | Authoring mode | `cli-copilot` |
 | Target display name | Provided by caller, usually `NEW <source displayName>` |
 | Target project directory | Provided by caller |
-| Target environment ID | Provided by caller or read from source `.mcs\conn.json` |
+| Target environment ID | Provided by caller |
 
 ## Deterministic execution rules
 
 1. Set the shell to fail on errors before running the command.
 2. Run exactly one creation command: `pac copilot init`.
 3. Before running the command, confirm that the target project directory does not already exist.
-4. If the target project directory already exists, stop before creating anything. Do not overwrite, delete, merge, or reuse it.
-5. If the command fails, stop immediately and show the exact failing command and full error output.
-6. After the command completes, confirm that the target project directory exists and contains `agent.mcs.yml`.
-7. If the expected `agent.mcs.yml` is missing, stop immediately and report what was missing.
-8. This operation is not idempotent: each successful run creates a new empty Copilot Studio agent project.
+4. If the target project directory already exists, stop and report the error, asking for the user intervention to delete such folder. Tell the user that the migration might already have been performed. In such case, the user either needs to delete the previous migrated agent or modify it (without running the /migrate command). Do not overwrite or delete the folder by yourself.
+5. After the command completes, confirm that the target project directory exists and contains `agent.mcs.yml`.
+6. If the expected `agent.mcs.yml` is missing, stop immediately and report what was missing.
+7. This operation is not idempotent: each successful run creates a new empty Copilot Studio agent project.
 
 ## Required setup sequence
 
