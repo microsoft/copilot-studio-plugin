@@ -1,7 +1,7 @@
 ---
 description: Migrate a Copilot Studio agent from the previous architecture to the new agentic loop, cloning it first if it is not already present locally.
 argument-hint: Agent name or path to describe (and source environment if it must be cloned)
-allowed-tools: Bash(node *ensure-prerequisites.js*), Read, Glob, Grep
+allowed-tools: Bash(node *ensure-prerequisites.js*), Read, Glob, Grep, Task
 ---
 
 # Copilot Studio Agent Migration
@@ -45,14 +45,28 @@ Determine whether the requested agent already exists in the workspace before try
 
 ### 3. Clone the agent if it is missing
 
-If the agent is not present locally, delegate the clone to the **Copilot Studio Manage** sub-agent. Provide it with the agent name and source environment from the initial request (ask the user for these details if they were not supplied). Once the manage sub-agent has cloned the agent into the workspace, confirm the `agent.mcs.yml` now exists before continuing.
+If the agent is not present locally, delegate the clone to the **Copilot Studio Manage** sub-agent (you can use a good, mid-tier AI model). Provide it with the agent name and source environment from the initial request (ask the user for these details if they were not supplied). Once the manage sub-agent has cloned the agent into the workspace, confirm the `agent.mcs.yml` now exists before continuing.
 
-### 4. Describe the agent
+### 4. Initialize the migration target files
 
-With the agent available locally, delegate the description to the **Copilot Studio Describer** sub-agent. It is read-only: it discovers the target agent, reads its files, asks any needed clarification questions, and produces a detailed descriptive report.
+With the source agent available locally, read the selected source agent's display name from `agent.mcs.yml` under `displayName`.
 
-### 5. Propose Migration Steps
-After the describer produces its report, give the agent description as input specs for the **Copilot Studio Dracarys Architect** sub-agent, and ask it to produce a detailed design for an agentic-loop-based agent that would implement the same behavior, including instructions, knowledge, tools, and skills. If the describer report identifies any gaps or uncertainties in understanding the original agent, highlight those to the architect and ask it to make reasonable assumptions to fill those gaps in order to produce a complete design.
+You'd need to initialize the migrated agent, and for its display name you should choose exactly:
+
+```text
+NEW <source displayName>
+```
+
+Delegate initialization to the **Copilot Studio Init** sub-agent (you can use a good, mid-tier AI model). Tell it the exact migrated agent display name and that its only job is to create the new empty Dataverse solution, create the empty Copilot Studio target agent in that solution, clone the target agent locally, and push the untouched empty baseline. It must not migrate or edit the source agent content.
+
+After the init sub-agent completes, confirm the target agent's `agent.mcs.yml` exists before continuing. Keep the selected source agent path for the next step so the newly created empty target agent is not described by mistake. This step MUST be completed before proposing and implementing migration steps, but can be run in parallel with the "describe" step. The only requirement is that it should complete before step 6, so the migration design can be implemented in the newly created target agent.
+
+### 5. Describe the source agent
+
+With the source agent available locally, delegate the description to the **Copilot Studio Describer** sub-agent (you MUST use the best of the bests AI model, high reasoning effort). Give it the selected source agent path explicitly, not the newly initialized target agent path. It is read-only: it reads the source agent's files, asks any needed clarification questions, and produces a detailed descriptive report.
+
+### 6. Propose Migration Steps
+After the describer produces its report, give the agent description as input specs for the **Copilot Studio Dracarys Architect** sub-agent (you MUST use the best of the bests AI model, high reasoning effort), and ask it to produce a detailed design for an agentic-loop-based agent that would implement the same behavior, including instructions, knowledge, tools, and skills. If the describer report identifies any gaps or uncertainties in understanding the original agent, highlight those to the architect and ask it to make reasonable assumptions to fill those gaps in order to produce a complete design.
 
 ---
 
