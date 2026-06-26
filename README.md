@@ -1,14 +1,21 @@
-# Project
+# Copilot Studio Plugin
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+This repository will be the successor to [skills-for-copilot-studio](https://github.com/microsoft/skills-for-copilot-studio). It contains an experimental plugin for creating, editing, validating, and migrating Copilot Studio YAML projects.
 
-As the maintainer of this project, please make a few updates:
+At the moment, this plugin uses an internal-only pre-release of the Power Platform CLI (`pac`). That pre-release CLI is required to use the plugin.
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+## Disclaimer
+
+This plugin is an experimental research project, not an officially supported Microsoft product. The Copilot Studio YAML schema may change without notice. Always review and validate generated YAML before pushing to your environment - AI-generated output may contain errors or unsupported patterns. This plugin is not meant for production use.
+
+## Installation
+
+```bash
+git clone https://github.com/microsoft/skills-for-copilot-studio.git
+
+# Load for a single session
+claude --plugin-dir /path/to/skills-for-copilot-studio
+```
 
 ## Contributing
 

@@ -71,7 +71,7 @@ Step 3: Run the migration script. Execute the migration script: node scripts\con
 The script will convert all connector and MCP servers, but will automatically skip any workflows, AI Prompts, or other unsupported actions. If the script encounters unsupported actions, do not worry. Capture the converted-tool summary and the skipped unsupported action list, then pass both to the Architect agent in the subsequent step so that the behavior can be manually refactored into instructions, skills, knowledge, or explicit open gaps.
 
 ### 7. Implement the migrated agent YAML
-After the describer produces its report and tool/action migration is complete, give the agent description as input specs for the **Copilot Studio Dracarys Architect** sub-agent (you MUST use the best of the bests AI model, high reasoning effort), and ask it to modify the newly initialized modern agent project directly.
+After the describer produces its report and tool/action migration is complete, give the agent description as input specs for the **Copilot Studio Architect** sub-agent (you MUST use the best of the bests AI model, high reasoning effort), and ask it to modify the newly initialized modern agent project directly.
 
 The architect sub-agent must receive:
 

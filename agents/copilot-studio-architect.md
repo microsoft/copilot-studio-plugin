@@ -1,5 +1,5 @@
 ---
-name: Copilot Studio Dracarys Architect
+name: Copilot Studio Architect
 description: >
   This agent accepts a detailed behavior description plus an initialized Copilot Studio CLI target project, reasons about the right agentic-loop architecture, and writes the modern YAML files that implement it. It can also migrate agents from the previous architecture to the new agentic loop.
 ---
