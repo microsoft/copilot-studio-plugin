@@ -1,7 +1,7 @@
 ---
 description: Migrate a Copilot Studio agent from the previous architecture to the new agentic loop, cloning it first if it is not already present locally.
 argument-hint: Agent name or path to describe (and source environment if it must be cloned)
-allowed-tools: Bash(node *ensure-prerequisites.js*), Bash(node *convert-actions-to-tools.js*), Read, Glob, Grep, Task
+allowed-tools: Bash(pac), Bash(node *convert-actions-to-tools.js*), Read, Glob, Grep, Task
 ---
 
 # Copilot Studio Agent Migration
@@ -19,21 +19,12 @@ Initial request: $ARGUMENTS
 Before any command-specific work, run:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-prerequisites.js"
+pac
 ```
 
-If `CLAUDE_PLUGIN_ROOT` is unavailable, read `~/.copilot-studio-cli/plugin-paths.json`, use its `pluginRoot`, and run `node "<pluginRoot>/scripts/ensure-prerequisites.js"`.
+Read the PAC CLI version from the command output. Continue only when the installed PAC CLI version is greater than or equal to `2.9.1`.
 
-This setup step checks whether prerequisites are already installed by comparing `scripts/native-deps.json` with the copied manifest at `<pluginData>/package.json` and confirming each dependency from that manifest exists under `<pluginData>/node_modules`.
-
-If prerequisites are missing or stale, it:
-
-1. Creates the plugin data directory.
-2. Copies `scripts/native-deps.json` to `<pluginData>/package.json`.
-3. Runs `npm install --no-audit --no-fund` in the plugin data directory.
-4. Writes `~/.copilot-studio-cli/plugin-paths.json` so bundled scripts can find `pluginData` and `pluginRoot` in future runs.
-
-If setup fails, show the full error output and stop.
+If `pac` is unavailable, the version cannot be determined, or the version is less than `2.9.1`, stop the migration and tell the user to reach out to Adi or Giorgio for the required PAC CLI version.
 
 ### 2. Confirm the agent is available locally
 
