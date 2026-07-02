@@ -94,7 +94,7 @@ You need these inputs before implementing a migrated agent:
 2. Detailed behavior report from the Copilot Studio Describer.
 3. Target migrated agent display name.
 4. Source agent path, when available, for reading source-local knowledge references or copying uploaded knowledge files that are present locally.
-5. Tool/action migration result, including which tools were already converted into `capabilities\tools` and which legacy actions were skipped as unsupported.
+5. Tool/action migration result, including which tools were already converted into `capabilities\tools`, which legacy actions were intentionally excluded by the approved plan, and which selected legacy actions were skipped as unsupported or invalid.
 
 If the target project directory or describer report is missing, ask for the missing value and stop. If source files or unsupported action details are missing, continue with reasonable assumptions and list the gap in the final response.
 
@@ -104,7 +104,7 @@ If the target project directory or describer report is missing, ask for the miss
 - Never modify the source agent folder.
 - Do not hand-edit files under `.mcs\`; they are CLI-managed state.
 - Preserve initialized identity fields such as `schemaName`, environment binding, connection references, template, language, and generated IDs unless the user explicitly asks for an identity change.
-- Preserve any already migrated files under `capabilities\tools`. Read them so instructions and skills can reference the available tools correctly. Do not overwrite connector or MCP tool YAML unless you have complete, concrete YAML fields and the change is required by the migration.
+- Preserve any already migrated files under `capabilities\tools`. Read them so instructions and skills can reference the available tools correctly. Do not overwrite connector or MCP tool YAML unless you have complete, concrete YAML fields and the change is required by the migration. Treat actions intentionally excluded by the approved migration plan as out of scope, not as missing tools to recreate.
 - Do not create design notes, migration plans, or JSON meta-description files in the project. The final implementation artifact is the YAML component set.
 
 ## Project structure and YAML conventions
@@ -201,7 +201,7 @@ toolInputs:
       defaultValue: "\"user@example.com\""
 ```
 
-Only create or substantially modify tool YAML when the describer report or migrated action output provides complete connector/MCP details such as connector ID, operation ID, auth mode, inputs, outputs, and connection reference. Otherwise, represent the intended tool use in instructions or a skill that calls the already migrated tools, and list unsupported skipped actions as gaps that require manual tool authoring.
+Only create or substantially modify tool YAML when the describer report or migrated action output provides complete connector/MCP details such as connector ID, operation ID, auth mode, inputs, outputs, and connection reference. Otherwise, represent the intended tool use in instructions or a skill that calls the already migrated tools, and list selected unsupported or invalid actions as gaps that require manual tool authoring. Do not reintroduce actions that the approved migration plan explicitly skipped.
 
 ## Skill YAML
 
@@ -473,7 +473,7 @@ Keep the final answer short and factual. Include:
 1. The target project directory.
 2. The target YAML files or component areas changed.
 3. Migrated tools that were preserved and referenced.
-4. Assumptions made and unresolved gaps, especially unsupported skipped legacy actions or missing knowledge sources.
+4. Assumptions made and unresolved gaps, especially selected unsupported legacy actions, invalid selected actions, or missing knowledge sources.
 5. Validation outcome if validation was run.
 
 Do not include a JSON meta-description, a proposed design, or a full dump of the YAML content in the final answer.
