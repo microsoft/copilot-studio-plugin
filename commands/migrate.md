@@ -76,7 +76,7 @@ Before building the user-approved migration plan, inspect the legacy action file
 node scripts\convert-actions-to-tools.js <legacy-actions-folder> --list
 ```
 
-Use the inventory and the describer report together to identify every legacy action's source file name, display/component name, support status, and likely relevance to the modern agent. The source file name is the stable selector to use later with `--include` or `--exclude`.
+Use the inventory and the describer report together to identify every legacy action's source file name, whole `mcs.metadata` object, `modelDisplayName`, `modelDescription`, `action.operationId`, support status, and likely relevance to the modern agent. The source file name is the stable selector to use later with `--include` or `--exclude`.
 
 ### 5b. Review and approve the migration plan (mandatory gate)
 
@@ -85,7 +85,7 @@ Before any tool migration or YAML implementation, the user must approve a **migr
 1. **Build the plan from the description.** Using the describer's report, assemble one consolidated artifact that describes the agent being built, not just the legacy one. Make clear throughout that these capabilities are what the **new (migrated) agent will have** — i.e., what is being carried over and built into the modern agent. Include these parts:
    - **What the new agent is for** — the one-paragraph high-level summary, framed as the purpose of the migrated agent.
    - **Capabilities of the new agent** — the `Capability` vs `Behavior` table, presented as the capabilities that will become part of the migrated agent. State explicitly that approving the plan means these become the modern agent's capabilities. The `Capability` column is phrased from the agent's perspective using agent-as-actor verbs (e.g., "Retrieves the user's cases", not "View my cases"), covering both user-initiated capabilities and always-on ones (identifies user & country, handles language, formatting). The `Behavior` column describes what the agent does and its decision logic in plain language (no variables, connectors, flows, or topic names) and how the start-of-conversation context (country, language) shapes later answers.
-   - **Tool/action migration decisions** — for each legacy action from step 5a, include a table with the action file name, display/component name, support status, approved decision, and rationale. Use these decisions:
+   - **Tool/action migration decisions** — for each legacy action from step 5a, include a table with the action file name, the most important inventory fields (`mcs.metadata`, `modelDisplayName`, `modelDescription`, and `action.operationId`), support status, approved decision, and rationale. Use these decisions:
      - `migrate`: convert this action into a modern tool.
      - `skip`: intentionally exclude this action/capability from the modern agent.
      - `manual`: do not auto-convert; the architect should implement the behavior another way or list it as a gap.

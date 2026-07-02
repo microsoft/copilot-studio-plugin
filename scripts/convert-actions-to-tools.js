@@ -397,10 +397,12 @@ function inventoryOutput(output) {
 }
 
 function inventoryEntry(fileName, document, result) {
+  const mcsMetadata = document["mcs.metadata"] || {};
   const metadata = baseMetadata(document, "Unknown action");
   const action = document.action || {};
   const entry = {
     fileName,
+    "mcs.metadata": mcsMetadata,
     componentName: metadata.componentName,
     modelDisplayName: document.modelDisplayName,
     modelDescription: document.modelDescription,
@@ -554,6 +556,18 @@ function selectedSourceFiles(sourceFiles, includeSet, excludeSet) {
   return { selected, excluded };
 }
 
+function formatInventoryValue(value) {
+  if (value === undefined) return "(not set)";
+  if (value === null) return "null";
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+}
+
+function indentInventoryValue(value, spaces) {
+  const indentation = " ".repeat(spaces);
+  return formatInventoryValue(value).replace(/\n/g, `\n${indentation}`);
+}
+
 function printInventory(inventory) {
   if (inventory.length === 0) {
     console.log("No legacy action YAML files found.");
@@ -562,12 +576,18 @@ function printInventory(inventory) {
 
   console.log("Legacy action inventory:");
   for (const entry of inventory) {
-    const displayName = entry.componentName || entry.modelDisplayName || "(unnamed action)";
     const actionKind = entry.actionKind || entry.kind || "unknown";
     const status = entry.supportStatus === "convertible"
       ? "convertible"
       : `${entry.supportStatus}: ${entry.reason}`;
-    console.log(`- ${entry.fileName}: ${displayName} [${actionKind}] ${status}`);
+    console.log(`- fileName: ${entry.fileName}`);
+    console.log(`  supportStatus: ${status}`);
+    console.log(`  action.kind: ${actionKind}`);
+    console.log("  mcs.metadata:");
+    console.log(`    ${indentInventoryValue(entry["mcs.metadata"], 4)}`);
+    console.log(`  modelDisplayName: ${indentInventoryValue(entry.modelDisplayName, 22)}`);
+    console.log(`  modelDescription: ${indentInventoryValue(entry.modelDescription, 22)}`);
+    console.log(`  action.operationId: ${indentInventoryValue(entry.operationId, 22)}`);
   }
 }
 
