@@ -16,10 +16,13 @@ function usage() {
   console.error(
     [
       "Usage:",
-      "  node convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> [--clean]",
+      "  node convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> [--all] [--include <action-file...>] [--exclude <action-file...>] [--report <path>] [--clean]",
+      "  node convert-actions-to-tools.js <legacy-actions-folder> --list [--include <action-file...>] [--exclude <action-file...>] [--report <path>]",
       "",
-      "Example:",
+      "Examples:",
       "  node convert-actions-to-tools.js \"C:\\Users\\gughini\\CopilotStudio\\SST\\actions\" \"C:\\Users\\gughini\\CopilotStudio\\dragent\\Giorgio2Clone\\capabilities\\tools\" --clean",
+      "  node convert-actions-to-tools.js \"C:\\Users\\gughini\\CopilotStudio\\SST\\actions\" \"C:\\Users\\gughini\\CopilotStudio\\dragent\\Giorgio2Clone\\capabilities\\tools\" --include \"SQLServer-ExecuteaSQLqueryV2.mcs.yml\" \"Dataverse-Listrows.mcs.yml\" --report tools-report.json",
+      "  node convert-actions-to-tools.js \"C:\\Users\\gughini\\CopilotStudio\\SST\\actions\" --list --report action-inventory.json",
     ].join("\n"),
   );
 }
@@ -251,16 +254,11 @@ function inferConnectorId(connectionReference) {
   return match ? `/providers/Microsoft.PowerApps/apis/${match[1]}` : undefined;
 }
 
-function randomSuffix() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let suffix = "";
-  for (let index = 0; index < 3; index += 1) {
-    suffix += chars[crypto.randomInt(chars.length)];
-  }
-  return suffix;
+function stableSuffix(inputFileName) {
+  return crypto.createHash("sha256").update(inputFileName).digest("hex").slice(0, 6);
 }
 
-function outputFileName(inputFileName, existingNames) {
+function outputFileName(inputFileName) {
   const specialExtension = inputFileName.endsWith(".mcs.yml")
     ? ".mcs.yml"
     : inputFileName.endsWith(".mcs.yaml")
@@ -268,13 +266,7 @@ function outputFileName(inputFileName, existingNames) {
       : path.extname(inputFileName);
   const baseName = inputFileName.slice(0, inputFileName.length - specialExtension.length);
 
-  let candidate;
-  do {
-    candidate = `${baseName}_${randomSuffix()}${specialExtension}`;
-  } while (existingNames.has(candidate));
-
-  existingNames.add(candidate);
-  return candidate;
+  return `${baseName}_${stableSuffix(inputFileName)}${specialExtension}`;
 }
 
 function baseMetadata(document, fallbackName) {
@@ -376,6 +368,73 @@ function convertTaskDialog(document) {
   return { skipped: `Unsupported action kind '${action.kind || "unknown"}'` };
 }
 
+function actionOperationId(action) {
+  return action.operationId || action.operationDetails?.operationId;
+}
+
+function supportStatus(result) {
+  if (!result.skipped) return "convertible";
+  if (result.skipped.includes("missing")) return "invalid";
+  return "unsupported";
+}
+
+function inventoryInput(input) {
+  const result = {
+    kind: input.kind,
+    propertyName: input.propertyName,
+  };
+  if (Object.prototype.hasOwnProperty.call(input, "value")) {
+    result.defaultValue = input.value;
+  }
+  return result;
+}
+
+function inventoryOutput(output) {
+  return {
+    propertyName: output.propertyName,
+    name: output.name,
+  };
+}
+
+function inventoryEntry(fileName, document, result) {
+  const mcsMetadata = document["mcs.metadata"] || {};
+  const metadata = baseMetadata(document, "Unknown action");
+  const action = document.action || {};
+  const entry = {
+    fileName,
+    "mcs.metadata": mcsMetadata,
+    componentName: metadata.componentName,
+    modelDisplayName: document.modelDisplayName,
+    modelDescription: document.modelDescription,
+    kind: document.kind,
+    actionKind: action.kind,
+    connectionReference: action.connectionReference,
+    connectorId: inferConnectorId(action.connectionReference),
+    operationId: actionOperationId(action),
+    inputs: Array.isArray(document.inputs) ? document.inputs.map(inventoryInput) : [],
+    outputs: Array.isArray(document.outputs) ? document.outputs.map(inventoryOutput) : [],
+    supportStatus: supportStatus(result),
+  };
+
+  if (result.skipped) {
+    entry.reason = result.skipped;
+  }
+
+  return entry;
+}
+
+function readAction(sourceFolder, fileName) {
+  const sourcePath = path.join(sourceFolder, fileName);
+  const text = fs.readFileSync(sourcePath, "utf8");
+  const document = parseYaml(text);
+  const result = convertTaskDialog(document);
+  return {
+    document,
+    result,
+    inventory: inventoryEntry(fileName, document, result),
+  };
+}
+
 function cleanOutputFolder(outputFolder) {
   if (!fs.existsSync(outputFolder)) return 0;
   let deleted = 0;
@@ -387,48 +446,291 @@ function cleanOutputFolder(outputFolder) {
   return deleted;
 }
 
-const args = process.argv.slice(2);
-const clean = args.includes("--clean");
-const folders = args.filter((arg) => arg !== "--clean");
+function optionValues(args, index, optionName) {
+  const values = [];
+  let cursor = index + 1;
+  while (cursor < args.length && !args[cursor].startsWith("--")) {
+    values.push(args[cursor]);
+    cursor += 1;
+  }
 
-if (folders.length !== 2) {
+  if (values.length === 0) {
+    throw new Error(`${optionName} requires at least one action file name.`);
+  }
+
+  return { values, nextIndex: cursor };
+}
+
+function parseArgs(args) {
+  const options = {
+    all: false,
+    clean: false,
+    exclude: [],
+    folders: [],
+    include: [],
+    list: false,
+    reportPath: undefined,
+  };
+
+  for (let index = 0; index < args.length;) {
+    const arg = args[index];
+    if (arg === "--all") {
+      options.all = true;
+      index += 1;
+      continue;
+    }
+    if (arg === "--clean") {
+      options.clean = true;
+      index += 1;
+      continue;
+    }
+    if (arg === "--list") {
+      options.list = true;
+      index += 1;
+      continue;
+    }
+    if (arg === "--report") {
+      const reportPath = args[index + 1];
+      if (!reportPath || reportPath.startsWith("--")) {
+        throw new Error("--report requires a path.");
+      }
+      options.reportPath = reportPath;
+      index += 2;
+      continue;
+    }
+    if (arg === "--include") {
+      const { values, nextIndex } = optionValues(args, index, "--include");
+      options.include.push(...values);
+      index = nextIndex;
+      continue;
+    }
+    if (arg === "--exclude") {
+      const { values, nextIndex } = optionValues(args, index, "--exclude");
+      options.exclude.push(...values);
+      index = nextIndex;
+      continue;
+    }
+    if (arg.startsWith("--")) {
+      throw new Error(`Unknown option: ${arg}`);
+    }
+
+    options.folders.push(arg);
+    index += 1;
+  }
+
+  if (options.all && options.include.length > 0) {
+    throw new Error("--all cannot be combined with --include.");
+  }
+
+  return options;
+}
+
+function selectorFileName(selector) {
+  return path.basename(selector);
+}
+
+function selectorSet(selectors, sourceFiles, optionName) {
+  const available = new Set(sourceFiles);
+  const normalized = selectors.map(selectorFileName);
+  const unknown = [...new Set(normalized.filter((fileName) => !available.has(fileName)))];
+  if (unknown.length > 0) {
+    throw new Error(`${optionName} action file(s) not found: ${unknown.join(", ")}`);
+  }
+  return new Set(normalized);
+}
+
+function selectedSourceFiles(sourceFiles, includeSet, excludeSet) {
+  const selected = [];
+  const excluded = [];
+  for (const fileName of sourceFiles) {
+    if (includeSet.size > 0 && !includeSet.has(fileName)) {
+      excluded.push({ fileName, reason: "Not selected by --include" });
+      continue;
+    }
+    if (excludeSet.has(fileName)) {
+      excluded.push({ fileName, reason: "Excluded by --exclude" });
+      continue;
+    }
+    selected.push(fileName);
+  }
+  return { selected, excluded };
+}
+
+function formatInventoryValue(value) {
+  if (value === undefined) return "(not set)";
+  if (value === null) return "null";
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+}
+
+function indentInventoryValue(value, spaces) {
+  const indentation = " ".repeat(spaces);
+  return formatInventoryValue(value).replace(/\n/g, `\n${indentation}`);
+}
+
+function printInventory(inventory) {
+  if (inventory.length === 0) {
+    console.log("No legacy action YAML files found.");
+    return;
+  }
+
+  console.log("Legacy action inventory:");
+  for (const entry of inventory) {
+    const actionKind = entry.actionKind || entry.kind || "unknown";
+    const status = entry.supportStatus === "convertible"
+      ? "convertible"
+      : `${entry.supportStatus}: ${entry.reason}`;
+    console.log(`- fileName: ${entry.fileName}`);
+    console.log(`  supportStatus: ${status}`);
+    console.log(`  action.kind: ${actionKind}`);
+    console.log("  mcs.metadata:");
+    console.log(`    ${indentInventoryValue(entry["mcs.metadata"], 4)}`);
+    console.log(`  modelDisplayName: ${indentInventoryValue(entry.modelDisplayName, 22)}`);
+    console.log(`  modelDescription: ${indentInventoryValue(entry.modelDescription, 22)}`);
+    console.log(`  action.operationId: ${indentInventoryValue(entry.operationId, 22)}`);
+  }
+}
+
+function writeReport(reportPath, report) {
+  const resolvedReportPath = path.resolve(reportPath);
+  fs.mkdirSync(path.dirname(resolvedReportPath), { recursive: true });
+  fs.writeFileSync(resolvedReportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  console.log(`Wrote report ${resolvedReportPath}`);
+}
+
+function reportFilters(options, includeSet, excludeSet) {
+  return {
+    all: options.all || includeSet.size === 0,
+    include: [...includeSet],
+    exclude: [...excludeSet],
+  };
+}
+
+let options;
+try {
+  options = parseArgs(process.argv.slice(2));
+} catch (error) {
+  console.error(error.message);
   usage();
   process.exit(1);
 }
 
-const [sourceFolder, outputFolder] = folders.map((folder) => path.resolve(folder));
+if (options.list) {
+  if (options.folders.length < 1 || options.folders.length > 2 || options.clean) {
+    usage();
+    process.exit(1);
+  }
+} else if (options.folders.length !== 2) {
+  usage();
+  process.exit(1);
+}
+
+const sourceFolder = path.resolve(options.folders[0]);
+const outputFolder = options.folders[1] ? path.resolve(options.folders[1]) : undefined;
 if (!fs.existsSync(sourceFolder) || !fs.statSync(sourceFolder).isDirectory()) {
   console.error(`Source folder does not exist or is not a directory: ${sourceFolder}`);
   process.exit(1);
 }
 
-fs.mkdirSync(outputFolder, { recursive: true });
-const deleted = clean ? cleanOutputFolder(outputFolder) : 0;
-const existingNames = new Set(fs.readdirSync(outputFolder));
 const sourceFiles = fs
   .readdirSync(sourceFolder)
   .filter((fileName) => /\.ya?ml$/i.test(fileName))
   .sort((left, right) => left.localeCompare(right));
 
-let converted = 0;
-let skipped = 0;
+let includeSet;
+let excludeSet;
+try {
+  includeSet = selectorSet(options.include, sourceFiles, "--include");
+  excludeSet = selectorSet(options.exclude, sourceFiles, "--exclude");
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 
-for (const fileName of sourceFiles) {
-  const sourcePath = path.join(sourceFolder, fileName);
-  const text = fs.readFileSync(sourcePath, "utf8");
-  const document = parseYaml(text);
-  const result = convertTaskDialog(document);
+if (options.clean && (includeSet.size > 0 || excludeSet.size > 0)) {
+  console.error("--clean cannot be used with --include or --exclude because it would delete tools outside the selected subset.");
+  process.exit(1);
+}
+
+const { selected, excluded } = selectedSourceFiles(sourceFiles, includeSet, excludeSet);
+const actionData = new Map(sourceFiles.map((fileName) => [fileName, readAction(sourceFolder, fileName)]));
+const inventory = sourceFiles.map((fileName) => actionData.get(fileName).inventory);
+const inventoryByFileName = new Map(inventory.map((entry) => [entry.fileName, entry]));
+
+if (options.list) {
+  const report = {
+    mode: "list",
+    sourceFolder,
+    filters: reportFilters(options, includeSet, excludeSet),
+    inventory,
+    selectedFiles: selected,
+    excluded: excluded.map(({ fileName, reason }) => ({
+      ...inventoryByFileName.get(fileName),
+      reason,
+    })),
+    totals: {
+      source: sourceFiles.length,
+      selected: selected.length,
+      excluded: excluded.length,
+    },
+  };
+  printInventory(inventory);
+  if (options.reportPath) writeReport(options.reportPath, report);
+  process.exit(0);
+}
+
+fs.mkdirSync(outputFolder, { recursive: true });
+const deleted = options.clean ? cleanOutputFolder(outputFolder) : 0;
+const report = {
+  mode: "migrate",
+  sourceFolder,
+  outputFolder,
+  filters: reportFilters(options, includeSet, excludeSet),
+  converted: [],
+  skippedUnsupported: [],
+  invalid: [],
+  excluded: excluded.map(({ fileName, reason }) => ({
+    ...inventoryByFileName.get(fileName),
+    reason,
+  })),
+};
+
+for (const fileName of selected) {
+  const { result, inventory: entry } = actionData.get(fileName);
 
   if (result.skipped) {
-    skipped += 1;
+    const skippedEntry = { ...entry, reason: result.skipped };
+    if (entry.supportStatus === "invalid") {
+      report.invalid.push(skippedEntry);
+    } else {
+      report.skippedUnsupported.push(skippedEntry);
+    }
     console.warn(`Skipped ${fileName}: ${result.skipped}`);
     continue;
   }
 
-  const targetFileName = outputFileName(fileName, existingNames);
-  fs.writeFileSync(path.join(outputFolder, targetFileName), result.yaml, "utf8");
-  converted += 1;
+  const targetFileName = outputFileName(fileName);
+  const targetPath = path.join(outputFolder, targetFileName);
+  fs.writeFileSync(targetPath, result.yaml, "utf8");
+  report.converted.push({
+    ...entry,
+    targetFileName,
+    targetPath,
+  });
   console.log(`Converted ${fileName} -> ${targetFileName}`);
 }
 
-console.log(`Done. Converted ${converted}, skipped ${skipped}, deleted ${deleted}.`);
+report.totals = {
+  source: sourceFiles.length,
+  selected: selected.length,
+  converted: report.converted.length,
+  skippedUnsupported: report.skippedUnsupported.length,
+  invalid: report.invalid.length,
+  excluded: report.excluded.length,
+  deleted,
+};
+
+console.log(
+  `Done. Converted ${report.totals.converted}, skipped ${report.totals.skippedUnsupported + report.totals.invalid}, excluded ${report.totals.excluded}, deleted ${deleted}.`,
+);
+if (options.reportPath) writeReport(options.reportPath, report);
