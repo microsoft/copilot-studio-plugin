@@ -14,15 +14,25 @@ Initial request: $ARGUMENTS
 
 ## Core Process
 
-### Resumability
+### Resumability and the plan file
 
-Run the execution steps in their natural order, exactly as described below (tool migration → architect → push); each step depends on the previous one's output. You do not need a separate todo list to track this — the steps and the plan file below are the source of truth.
+The sibling `MIGRATION-PLAN-<random>.md` file is the **single source of truth** for the migration's scope decisions — the capabilities, gap resolutions, and tool/action decisions. Downstream steps (tool migration, architect) read their decisions from the current contents of this file, not from an in-memory copy, so any edits the user makes to the file by hand are always honored.
 
-Persist the approved plan so a stopped migration can be resumed:
+- **Filename and location.** `<random>` is a short random string (e.g. 6-8 hex/alphanumeric chars) used only to keep the filename unique. Write it as a **sibling of the target project directory** (i.e., in the parent folder, next to the project — not inside it) so it is never packed or pushed with the agent.
+- **Write early, keep in sync.** Create the file as soon as you first assemble the plan in step 5b — not only on approval — so an interrupted run always leaves a resumable artifact. Near the top of the file, record an explicit status line: `Status: draft` while the plan is still being iterated, and `Status: approved` once the user approves. Rewrite the file every approval round, and update it after each execution step (tool migration, architect, push) so it always reflects current state.
+- **Execution order.** After approval, run the execution steps in their natural order (tool migration → architect → push); each depends on the previous one's output. You do not need a separate todo list — the steps and this plan file are the source of truth.
+- **Resuming.** At the start of a run, search for an existing plan file (see step 0) and continue from it instead of starting over.
 
-- When the user approves the migration plan (step 5a), write it to a Markdown file named `MIGRATION-PLAN-<random>.md`, where `<random>` is a short random string (e.g. 6-8 hex/alphanumeric chars) used only to keep the filename unique. Write it as a **sibling of the target project directory** (i.e., in the parent folder, next to the project — not inside it) so it is never packed or pushed with the agent.
-- Update that same file after each subsequent major step completes (tool migration, architect, push), so it always reflects current state.
-- At the start of a `/migrate` run, look for an existing `MIGRATION-PLAN-*.md` sibling to the resolved target/source workspace. If one exists and its plan is already approved, offer to resume from the next incomplete step instead of re-running describe and plan approval. If it exists but is not yet approved, re-present it for approval. If none exists, start fresh.
+### 0. Check for an existing migration plan (resume)
+
+At the very start of a `/migrate` run — before prerequisites, cloning, or init — search the workspace for an existing `MIGRATION-PLAN-*.md` file (as a sibling of any resolved or target project directory, and in the workspace root). If one is found:
+
+1. Read it and treat its **current contents as authoritative**, including any manual edits the user made outside this workflow.
+2. If its status is `approved`, offer to resume: skip the describe and plan-approval steps and continue from the first execution step that the file does not yet record as complete (tool migration → architect → push).
+3. If its status is `draft` (or it has no status line), resume the approval loop (step 5b) using the existing content as the starting draft rather than a blank page.
+4. If the user would rather start over, set the old file aside and start fresh.
+
+If no plan file exists, start fresh from step 1.
 
 ### 1. Ensure prerequisites
 
@@ -92,12 +102,13 @@ Before any tool migration or YAML implementation, the user must approve a **migr
      - `unsupported`: the action cannot be auto-converted; pass it to the architect for manual refactor or gap handling if the capability remains in scope.
    - **Migration plan** — for each open gap the describer surfaced (e.g., duplicate regional knowledge as topics vs sub-agents, non-migratable ServiceNow flows, language handling, country allow-lists, cleanup), propose how to handle it in the migration with a recommended approach, not just an open question. Make these proposals concrete so the user can react to a plan rather than start from a blank page.
    - Offer the full describer report on request.
-2. **Present the whole plan and ask for approval** using the `ask_user` tool. Offer only two explicit choices — **Approve** (proceed to migration) and **Stop** — plus the free-text "Other" option that `ask_user` provides. Do not add a separate "request changes" choice: the free-text "Other" already lets the user request changes or comment on any part of the plan (description corrections, a different gap resolution, added guidance). Make the prompt clear that typing in "Other" is how to request changes.
-3. **Iterate on comments.** If the user requests changes via the free-text answer, apply their feedback: for description corrections, send the feedback to the existing describer sub-agent (via `write_agent`) so it refines the same report with full context; for plan/gap-handling changes, update the proposals directly. Then re-present the **entire** plan in full again — the complete "what the new agent is for" paragraph, the full capabilities table with every row rendered, and the full migration plan — with the requested changes already applied. Do NOT show a diff, delta, or shorthand such as "same as above, minus the X row"; always render the whole updated plan from top to bottom so the user reviews the complete current state each round. Then ask for approval once more. Repeat until the user approves or stops.
-4. Capture the approved plan — including the agreed handling for every gap and every tool/action migration decision — to pass forward to the architect as explicit decisions, not guesses. On approval, write the full plan to the sibling `MIGRATION-PLAN-<random>.md` file (see "Resumability") so it can be resumed or used as the architect's input spec. Only after the user approves the plan, continue to tool migration and implementation.
+   - As soon as this plan is first assembled, write it to the sibling `MIGRATION-PLAN-<random>.md` file with a `Status: draft` line (see "Resumability and the plan file"), and keep that file in sync with what you present on every round.
+2. **Present the whole plan and ask for approval** using the `ask_user` tool. Offer only two explicit choices — **Approve** (proceed to migration) and **Stop** — plus the free-text "Other" option that `ask_user` provides. Do not add a separate "request changes" choice: the free-text "Other" already lets the user request changes or comment on any part of the plan (description corrections, a different gap resolution, added guidance). Make the prompt clear that typing in "Other" is how to request changes. Also tell the user they may open and edit `MIGRATION-PLAN-<random>.md` directly — by hand — instead of or in addition to typing feedback (e.g. to adjust the capabilities table, a gap resolution, or a tool/action decision); you will re-read the file and honor those edits on the next round.
+3. **Iterate on comments.** If the user requests changes via the free-text answer, apply their feedback: for description corrections, send the feedback to the existing describer sub-agent (via `write_agent`) so it refines the same report with full context; for plan/gap-handling changes, update the proposals directly. Before re-rendering, re-read the current `MIGRATION-PLAN-<random>.md` from disk so any edits the user made to the file by hand are picked up, merge them with any conversational feedback, and rewrite the file to match. Then re-present the **entire** plan in full again — the complete "what the new agent is for" paragraph, the full capabilities table with every row rendered, and the full migration plan — with the requested changes already applied. Do NOT show a diff, delta, or shorthand such as "same as above, minus the X row"; always render the whole updated plan from top to bottom so the user reviews the complete current state each round. Then ask for approval once more. Repeat until the user approves or stops.
+4. Capture the approved plan — including the agreed handling for every gap and every tool/action migration decision — as the explicit decisions passed forward, not guesses. On approval, write the final plan to the sibling `MIGRATION-PLAN-<random>.md` file and set its status line to `Status: approved` (see "Resumability and the plan file"); this file, read from disk at each hand-off, is the tool-migration and architect steps' authoritative input spec. Only after the user approves the plan, continue to tool migration and implementation.
 
 ### 6. Migrate tools and actions
-The tool migration process converts only the approved legacy actions from the `MIGRATION-PLAN-<random>.md` tool/action decisions table.
+The tool migration process converts only the approved legacy actions. Read the current `MIGRATION-PLAN-<random>.md` from disk and use its tool/action decisions table as the source of truth (so any manual edits the user made to the file are respected).
 
 Step 1: Check the approved plan. If there are no actions with the `migrate` decision, do not run the converter. Record in the plan that no tools were auto-migrated, and carry any `manual` or `unsupported` decisions forward to the architect.
 
@@ -138,7 +149,7 @@ The architect sub-agent must receive:
 2. The newly initialized target agent project directory.
 3. The migrated target display name (`NEW <source displayName>`).
 4. The target environment ID.
-5. The complete Copilot Studio Describer report and the approved migration plan (including the agreed handling for every gap and every tool/action decision).
+5. The complete Copilot Studio Describer report and the **path to** the approved `MIGRATION-PLAN-<random>.md`. Instruct the architect to read that file's current contents from disk as the authoritative source of the migration decisions (capabilities, gap resolutions, and tool/action decisions) rather than relying on a pasted copy, so any manual edits the user made are honored.
 6. The tool/action migration result, including migrated tools, intentionally excluded actions, unsupported skipped actions, and invalid selected actions.
 7. The user's decisions on the open gaps, as captured in the approved plan (step 5b).
 
