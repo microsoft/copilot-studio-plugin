@@ -11,10 +11,10 @@ This plugin is an experimental research project, not an officially supported Mic
 ## Installation
 
 ```bash
-git clone https://github.com/microsoft/skills-for-copilot-studio.git
+git clone https://github.com/microsoft/copilot-studio-plugin.git
 
 # Load for a single session
-claude --plugin-dir /path/to/skills-for-copilot-studio
+claude --plugin-dir /path/to/copilot-studio-plugin
 ```
 
 ## Contributing
