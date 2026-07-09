@@ -47,7 +47,7 @@ Determine whether the requested agent already exists in the workspace before try
 
 ### 3. Clone the agent if it is missing
 
-If the agent is not present locally, delegate the clone to the **Copilot Studio Manage** sub-agent (you can use a good, mid-tier AI model). Provide it with the agent name and source environment from the initial request (ask the user for these details if they were not supplied). Once the manage sub-agent has cloned the agent into the workspace, confirm the `agent.mcs.yml` now exists before continuing.
+If the agent is not present locally, delegate the clone to the **Copilot Studio Manage** sub-agent (you can use the latest good, mid-tier AI model). Provide it with the agent name and source environment from the initial request (ask the user for these details if they were not supplied). Once the manage sub-agent has cloned the agent into the workspace, confirm the `agent.mcs.yml` now exists before continuing.
 
 ### 4. Initialize the migration target files
 
@@ -57,13 +57,13 @@ You'd need to initialize the new/migrated agent, and for its display name you sh
 
 Use a new target project directory in the workspace named exactly like the migrated agent display name (`<source displayName> (migrated)`) unless the user explicitly supplied a different directory.
 
-Delegate initialization to the **Copilot Studio Init** sub-agent (you can use a good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, and environment ID. Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
+Delegate initialization to the **Copilot Studio Init** sub-agent (you can use the latest good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, and environment ID. Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
 
 After the init sub-agent completes, confirm the target agent's `settings.mcs.yml` exists before continuing. This step MUST be completed before migrating tools or implementing migration steps, but can be run in parallel with the "describe old agent" step.
 
 ### 5. Describe the source agent
 
-With the source agent available locally, delegate the description to the **Copilot Studio Describer** sub-agent (you MUST use the best of the bests AI model, high reasoning effort). Give it the selected source agent path explicitly, not the newly initialized target agent path. It is read-only: it reads the source agent's files, asks any needed clarification questions, and produces a detailed descriptive report, that will be later used by the architect sub-agent to implement the migrated agent YAML. Run the describer in the background so you can keep its session alive for iteration in the next step.
+With the source agent available locally, delegate the description to the **Copilot Studio Describer** sub-agent (you MUST use the latest best of the bests AI model, with high reasoning effort). Give it the selected source agent path explicitly, not the newly initialized target agent path. It is read-only: it reads the source agent's files, asks any needed clarification questions, and produces a detailed descriptive report, that will be later used by the architect sub-agent to implement the migrated agent YAML. Run the describer in the background so you can keep its session alive for iteration in the next step.
 
 ### 5a. Inventory legacy actions for plan input
 
@@ -210,7 +210,7 @@ If creating the new connection reference fails, stop and ask whether the user wa
 
 
 ### 7. Implement the migrated agent YAML
-After the user has approved the migration plan (step 5b) and tool/action migration is complete, give the agent description as input specs for the **Copilot Studio Architect** sub-agent (you MUST use the best of the bests AI model, high reasoning effort), and ask it to modify the newly initialized modern agent project directly.
+After the user has approved the migration plan (step 5b) and tool/action migration is complete, give the agent description as input specs for the **Copilot Studio Architect** sub-agent (you MUST use the latest best of the bests AI model, with high reasoning effort), and ask it to modify the newly initialized modern agent project directly.
 
 The architect sub-agent must receive:
 
@@ -228,7 +228,9 @@ After the architect completes, confirm that the target project still contains `s
 
 ### 8. Push the migrated agent to the target environment
 
-After the architect completes, delegate the push to the **Copilot Studio Manage** sub-agent (you can use a good, mid-tier AI model). Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow. Publishing is not necessary.
+After the architect completes, validate every authored `.mcs.yml` component file under the target project, including skills, tools, knowledge, and any other component folders: PAC derives each Dataverse `botcomponent.schemaname` from the file stem, so every bot-component file stem must start with a valid customization prefix for the target environment and must be no more than 100 characters long. If needed, rename files to short prefixed stems such as `<publisher>_filename.mcs.yml` before pushing
+
+After that validation, delegate the push to the **Copilot Studio Manage** sub-agent (you can use the latest good, mid-tier AI model). Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow. Publishing is not necessary.
 
 
 ---
