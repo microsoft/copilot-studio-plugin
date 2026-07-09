@@ -100,11 +100,11 @@ Before any tool migration or YAML implementation, the user must approve a **migr
 ### 6. Migrate tools and actions
 The tool migration process converts only the approved legacy actions from the `MIGRATION-PLAN-<random>.md` tool/action decisions table.
 
-Step 1: Check the approved plan. If there are no actions with the `migrate` decision, do not run the converter. Record in the plan that no tools were auto-migrated, and carry any `manual` or `unsupported` decisions forward to the architect.
+Step 1: Check the approved migration plan. If there are no actions with the `migrate` decision, do not run the converter. Record in the plan that no tools were auto-migrated, and carry any `manual` or `unsupported` decisions forward to the architect so that the architect can found other ways.
 
-Step 2: Prepare the destination folder. If there are approved actions to migrate, check if the `capabilities\tools` folder exists in the new agent. If it does not exist, create it.
+Step 2: If there are approved actions to migrate, check if the `capabilities\tools` folder exists in the new agent. If it does not exist, create it.
 
-Step 3: Run the migration script using one command derived from the approved decisions:
+Step 3: Run the migration script using one command derived from the approved decisions.
 
 - To migrate all directly supported actions, run:
 
@@ -129,6 +129,85 @@ Do not use `--clean` with `--include` or `--exclude`; partial migration must not
 Step 4: Capture the converted-tool report, including converted tools, unsupported or invalid selected actions, and intentionally excluded actions. Update the sibling `MIGRATION-PLAN-<random>.md` file with the tool migration result before proceeding.
 
 The script will convert supported connector and MCP actions, but will automatically skip workflows, AI Prompts, or other unsupported actions. If selected actions are unsupported, do not treat that as a failure by itself. Capture the skipped unsupported action list and pass it to the Architect agent so that the behavior can be manually refactored into instructions, skills, knowledge, or explicit open gaps.
+
+Step 5: If no converted tools are connector-backed, skip this step. A connector-backed tool is any converted tool with:
+
+- `kind: ConnectorTool`
+- `connectorId`
+- `connectionReference`
+
+For every converted connector tool:
+
+1. Read the tool YAML under `<new-agent>\capabilities\tools\`.
+2. Record:
+   - tool file path
+   - `connectorId`
+   - `connectionReference`
+   - `operationId`
+3. Run:
+
+```bash
+pac connection list --environment <target-environment-id>
+```
+
+4. Determine whether the target environment has a usable connected connection for each required `connectorId`.
+
+If any required connection is missing or not connected, stop before architect implementation and explain to the user that in order to migrate the connector-backed tools, they must either create the missing connection or otherwise you could skip/drop the functionality supported by that connector tool. Say to them that, if they want you to migrate those actions, they must create the missing connections by going to `https://make.preview.powerautomate.com/environments/<target-environment-id>/connections` and explicitly create the connections for each connector tool that is missing a usable connection.
+
+Once you've explained this to the user, ask them to choose one of the following options:
+
+- `I created the connections; re-check`
+- `Skip/remove the connector tool for now`
+- `Stop migration`
+
+If the user decided to skip/remove the connector tool, update the migration plan to reflect that decision and continue with the migration. If the user created the connections, rerun:
+
+```powershell
+pac connection list --environment <target-environment-id>
+```
+
+Then identify the new raw connection ID for the required connector from `pac connection list`, such as `48e11359c0f344f9a495f649e515612a`. Do not invent or convert it to older formatted IDs like `shared-sharepointonline-...`.
+
+Step 6: Create a dedicated Dataverse connection reference for the migrated agent (do not update that existing classic connection reference by default, because it may also be used by the source/classic agent or other components in the target environment). Instead, create a dedicated connection reference for the migrated agent and update the migrated tool YAML to use the new logical name.
+
+First choose a unique logical name for the migrated connection reference. A good pattern is `<target-agent-schema-name>.cr.<connector-name>.<short-connection-id-or-random-suffix>`.
+
+To create the new connection reference, you can write temporary .powerfx files to serve that goal to a temporary location (not the agent project directory) and run them with `pac power-fx run --environment <target-environment-id> --file <created-formula.powerfx> --echo`
+
+You can create connection references with `Collect`. Do not use `Defaults('Connection References')`; the PAC Power Fx runner may recognize `Defaults` but not support it.
+
+```powerfx
+Collect(
+  'Connection References';
+  {
+    connectionreferencedisplayname: "<display-name>";
+    connectionreferencelogicalname: "<new-migrated-connection-reference-logical-name>";
+    connectorid: "<connector-id>";
+    connectionid: "<raw-connection-id-from-pac-connection-list>"
+  }
+)
+```
+
+Run it with:
+
+```powershell
+pac power-fx run --environment <target-environment-id> --file <rebind-connection-reference.fx> --echo
+```
+
+After creating the record, write a `ShowColumns()` verification query and confirm the new record exists with the expected `connectionid` and `connectorid`.
+
+Then update the migrated tool YAML under `<new-agent>\capabilities\tools\` so its `connectionReference` uses the new dedicated logical name:
+
+```yaml
+connectionReference: <new-migrated-connection-reference-logical-name>
+```
+
+If the referenced Dataverse `Connection References` record does not exist before push, push can fail with an error like `A record with the specified key values does not exist in connectionreference entity`.
+
+After updating the tool YAML, record the new connection-reference logical name, display name, `connectionid`, and `connectorid` in `MIGRATION-PLAN-<random>.md`.
+
+If creating the new connection reference fails, stop and ask whether the user wants to create or bind the connection reference in the target solution UI, skip/remove the connector tool for now, or explicitly approve patching the existing classic connection reference.
+
 
 ### 7. Implement the migrated agent YAML
 After the user has approved the migration plan (step 5b) and tool/action migration is complete, give the agent description as input specs for the **Copilot Studio Architect** sub-agent (you MUST use the best of the bests AI model, high reasoning effort), and ask it to modify the newly initialized modern agent project directly.
