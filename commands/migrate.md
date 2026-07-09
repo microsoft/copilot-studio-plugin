@@ -34,7 +34,8 @@ pac
 
 Read the PAC CLI version from the command output. Continue only when the installed PAC CLI version is greater than or equal to `2.9.1`.
 
-If `pac` is unavailable, the version cannot be determined, or the version is less than `2.9.1`, stop the migration and tell the user to reach out to Adi or Giorgio for the required PAC CLI version.
+If `pac` is unavailable, the version cannot be determined, or the version is less than `2.9.1`, stop the migration and tell the user to install the required PAC CLI version from https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction#install-microsoft-power-platform-cli.
+Don't install PAC CLI yourself, except if the user explicitly requests it. If you do install it because the user explicitly asked you, the only installation allowed is the official `dotnet tool install --global Microsoft.PowerApps.CLI.Tool`. Instead, if the user is installing it themselves, you may also use different methods such as the windows-specific MSI or other platform-specific methods.
 
 ### 2. Confirm the agent is available locally
 
@@ -52,9 +53,9 @@ If the agent is not present locally, delegate the clone to the **Copilot Studio 
 
 With the source agent available locally, read the selected source agent's display name from `agent.mcs.yml` under `displayName`, and read the target environment ID from the selected source agent's `.mcs\conn.json` under `EnvironmentId` (migrating in a different environment is not yet supported).
 
-You'd need to initialize the new/migrated agent, and for its display name you should choose exactly `NEW <source displayName>`
+You'd need to initialize the new/migrated agent, and for its display name you should choose exactly `<source displayName> (migrated)`. If the display name is exceeding 30 characters, propose to the user some shorter alternatives that still clearly indicate the agent is migrated. Ask the user to approve one of the proposed display names or provide a different one.
 
-Use a new target project directory in the workspace named exactly like the migrated agent display name (`NEW <source displayName>`) unless the user explicitly supplied a different directory.
+Use a new target project directory in the workspace named exactly like the migrated agent display name (`<source displayName> (migrated)`) unless the user explicitly supplied a different directory.
 
 Delegate initialization to the **Copilot Studio Init** sub-agent (you can use a good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, and environment ID. Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
 
@@ -136,7 +137,7 @@ The architect sub-agent must receive:
 
 1. The selected source agent path.
 2. The newly initialized target agent project directory.
-3. The migrated target display name (`NEW <source displayName>`).
+3. The migrated target display name (usually `<source displayName> (migrated)`).
 4. The target environment ID.
 5. The complete Copilot Studio Describer report and the approved migration plan (including the agreed handling for every gap and every tool/action decision).
 6. The tool/action migration result, including migrated tools, intentionally excluded actions, unsupported skipped actions, and invalid selected actions.
@@ -148,7 +149,7 @@ After the architect completes, confirm that the target project still contains `s
 
 ### 8. Push the migrated agent to the target environment
 
-After the architect completes, delegate the push to the **Copilot Studio Manage** sub-agent (you can use a good, mid-tier AI model). Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow.
+After the architect completes, delegate the push to the **Copilot Studio Manage** sub-agent (you can use a good, mid-tier AI model). Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow. Publishing is not necessary.
 
 
 ---

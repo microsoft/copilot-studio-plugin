@@ -24,11 +24,7 @@ You need these inputs before doing any setup:
 2. Target project directory.
 3. Target environment ID.
 
-The caller should provide the target display name explicitly. In migration workflows, the new target display name is usually derived from the source agent display name by prepending `NEW ` to it. For example, if the source agent display name is `MyAgent`, the target display name should be:
-
-```text
-NEW MyAgent
-```
+The caller should provide the target display name explicitly. In migration workflows, the new target display name is usually derived from the source agent display name by appending ` (migrated)` to it. For example, if the source agent display name is `MyAgent`, the target display name should be `MyAgent (migrated)`.
 
 If the target display name, target project directory, or target environment ID is still missing, ask for the missing value and stop until it is provided.
 
@@ -40,7 +36,7 @@ Use these constants exactly unless the user explicitly gives different values:
 |---|---|
 | Publisher prefix | `catmgr` |
 | Authoring mode | `cli-copilot` |
-| Target display name | Provided by caller, usually `NEW <source displayName>` |
+| Target display name | Provided by caller, usually `<source displayName> (migrated)` |
 | Target project directory | Provided by caller |
 | Target environment ID | Provided by caller |
 
