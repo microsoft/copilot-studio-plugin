@@ -26,13 +26,7 @@ Persist the approved plan so a stopped migration can be resumed:
 
 ### 1a. Verify the PAC CLI prerequisite (blocking)
 
-Before any command-specific work, run:
-
-```bash
-pac
-```
-
-Read the PAC CLI version from the command output. Continue only when the installed PAC CLI version is greater than or equal to `2.9.3`.
+Before any command-specific work, run `pac` and read the PAC CLI version from the command output. Continue only when the installed PAC CLI version is greater than or equal to `2.9.3`.
 
 If `pac` is unavailable, the version cannot be determined, or the version is less than `2.9.3`, stop the migration and tell the user to install the required PAC CLI version from https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction#install-microsoft-power-platform-cli.
 Don't install PAC CLI yourself, except if the user explicitly requests it. If you do install it because the user explicitly asked you, the only installation allowed is the official `dotnet tool install --global Microsoft.PowerApps.CLI.Tool`. Instead, if the user is installing it themselves, you may also use different methods such as the windows-specific MSI or other platform-specific methods.
@@ -46,7 +40,6 @@ First, read `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')
 #### Legacy plugin
 
 The current plugin, `mcs-assistant@copilot-studio-plugin`, supports modern-orchestration agents. The legacy plugin, `copilot-studio@skills-for-copilot-studio`, supports only classic orchestration and may conflict with the current plugin.
-
 1. Go up two directory levels from `pluginRoot` to find the installed plugins root directory.
 2. Check whether that directory contains `skills-for-copilot-studio`.
 3. If it is present, pause and warn the user that removing or disabling the legacy plugin is recommended. Ask the user whether they want to remove or disable it, but continue the migration if they choose not to.
@@ -64,7 +57,6 @@ If either check cannot be completed, briefly note which check was skipped and wh
 ### 2. Confirm the agent is available locally
 
 Determine whether the requested agent already exists in the workspace before trying to describe it.
-
 1. Auto-discover candidate agents with `Glob: **/agent.mcs.yml`.
 2. If a matching `agent.mcs.yml` is found, the agent is present — continue to step 4.
 3. If no matching agent is found, proceed to step 3 to clone it.
@@ -122,31 +114,18 @@ Before any tool migration or YAML implementation, the user must approve a **migr
 4. Capture the approved plan — including the agreed handling for every gap and every tool/action migration decision — to pass forward to the architect as explicit decisions, not guesses. On approval, write the full plan to the sibling `MIGRATION-PLAN-<random>.md` file (see "Resumability") so it can be resumed or used as the architect's input spec. Only after the user approves the plan, continue to tool migration and implementation.
 
 ### 6. Migrate tools and actions
+
 The tool migration process converts only the approved legacy actions from the `MIGRATION-PLAN-<random>.md` tool/action decisions table.
 
 Step 1: Check the approved migration plan. If there are no actions with the `migrate` decision, do not run the converter. Record in the plan that no tools were auto-migrated, and carry any `manual` or `unsupported` decisions forward to the architect so that the architect can found other ways.
-
 Step 2: If there are approved actions to migrate, check if the `capabilities\tools` folder exists in the new agent. If it does not exist, create it.
-
 Step 3: Run the migration script using one command derived from the approved decisions.
 
-- To migrate all directly supported actions, run:
+- To migrate all directly supported actions, run: `node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> --all --report <tool-migration-report-json>`
 
-```bash
-node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> --all --report <tool-migration-report-json>
-```
+- To migrate a selected subset, pass the approved action file names after `--include`: `node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> --include "<action-file-1.mcs.yml>" "<action-file-2.mcs.yml>" --report <tool-migration-report-json>`
 
-- To migrate a selected subset, pass the approved action file names after `--include`:
-
-```bash
-node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> --include "<action-file-1.mcs.yml>" "<action-file-2.mcs.yml>" --report <tool-migration-report-json>
-```
-
-- If the approved plan keeps almost every supported action except a few, you may instead use `--exclude` with the omitted action file names:
-
-```bash
-node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> --exclude "<skipped-action-file.mcs.yml>" --report <tool-migration-report-json>
-```
+- If the approved plan keeps almost every supported action except a few, you may instead use `--exclude` with the omitted action file names: `node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> --exclude "<skipped-action-file.mcs.yml>" --report <tool-migration-report-json>`
 
 Do not use `--clean` with `--include` or `--exclude`; partial migration must not delete tools outside the selected subset.
 
@@ -154,32 +133,17 @@ Step 4: Capture the converted-tool report, including converted tools, unsupporte
 
 The script will convert supported connector and MCP actions, but will automatically skip workflows, AI Prompts, or other unsupported actions. If selected actions are unsupported, do not treat that as a failure by itself. Capture the skipped unsupported action list and pass it to the Architect agent so that the behavior can be manually refactored into instructions, skills, knowledge, or explicit open gaps.
 
-Step 5: If no converted tools are connector-backed, skip this step. A connector-backed tool is any converted tool with:
-
-- `kind: ConnectorTool`
-- `connectorId`
-- `connectionReference`
+Step 5: If no converted tools are connector-backed, skip this step. A connector-backed tool is any converted tool with: `kind: ConnectorTool` OR `connectorId` OR `connectionReference`
 
 For every converted connector tool:
-
 1. Read the tool YAML under `<new-agent>\capabilities\tools\`.
-2. Record:
-   - tool file path
-   - `connectorId`
-   - `connectionReference`
-   - `operationId`
-3. Run:
-
-```bash
-pac connection list --environment <target-environment-id>
-```
-
+2. Record the tool file path, `connectorId`, `connectionReference`, and `operationId`.
+3. Run: `pac connection list --environment <target-environment-id>`
 4. Determine whether the target environment has a usable connected connection for each required `connectorId`.
 
 If any required connection is missing or not connected, stop before architect implementation and explain to the user that in order to migrate the connector-backed tools, they must either create the missing connection or otherwise you could skip/drop the functionality supported by that connector tool. Say to them that, if they want you to migrate those actions, they must create the missing connections by going to `https://make.preview.powerautomate.com/environments/<target-environment-id>/connections` and explicitly create the connections for each connector tool that is missing a usable connection.
 
 Once you've explained this to the user, ask them to choose one of the following options:
-
 - `I created the connections; re-check`
 - `Skip/remove the connector tool for now`
 - `Stop migration`
@@ -201,8 +165,7 @@ To create the new connection reference, you can write temporary .powerfx files t
 You can create connection references with `Collect`. Do not use `Defaults('Connection References')`; the PAC Power Fx runner may recognize `Defaults` but not support it.
 
 ```powerfx
-Collect(
-  'Connection References';
+Collect('Connection References';
   {
     connectionreferencedisplayname: "<display-name>";
     connectionreferencelogicalname: "<new-migrated-connection-reference-logical-name>";
@@ -212,26 +175,15 @@ Collect(
 )
 ```
 
-Run it with:
-
-```powershell
-pac power-fx run --environment <target-environment-id> --file <rebind-connection-reference.fx> --echo
-```
+Run it with `pac power-fx run --environment <target-environment-id> --file <rebind-connection-reference.fx> --echo`
 
 After creating the record, write a `ShowColumns()` verification query and confirm the new record exists with the expected `connectionid` and `connectorid`.
 
-Then update the migrated tool YAML under `<new-agent>\capabilities\tools\` so its `connectionReference` uses the new dedicated logical name:
+Then update the migrated tool YAML under `<new-agent>\capabilities\tools\` so its `connectionReference` uses the new dedicated logical name `connectionReference: <new-migrated-connection-reference-logical-name>`
 
-```yaml
-connectionReference: <new-migrated-connection-reference-logical-name>
-```
-
-If the referenced Dataverse `Connection References` record does not exist before push, push can fail with an error like `A record with the specified key values does not exist in connectionreference entity`.
-
-After updating the tool YAML, record the new connection-reference logical name, display name, `connectionid`, and `connectorid` in `MIGRATION-PLAN-<random>.md`.
+If the referenced Dataverse `Connection References` record does not exist before push, push can fail with an error like `A record with the specified key values does not exist in connectionreference entity`. After updating the tool YAML, record the new connection-reference logical name, display name, `connectionid`, and `connectorid` in `MIGRATION-PLAN-<random>.md`.
 
 If creating the new connection reference fails, stop and ask whether the user wants to create or bind the connection reference in the target solution UI, skip/remove the connector tool for now, or explicitly approve patching the existing classic connection reference.
-
 
 ### 7. Implement the migrated agent YAML
 After the user has approved the migration plan (step 5b) and tool/action migration is complete, give the agent description as input specs for the **Copilot Studio Architect** sub-agent (you MUST use the latest best of the bests AI model, with high reasoning effort), and ask it to modify the newly initialized modern agent project directly.
@@ -255,9 +207,6 @@ After the architect completes, confirm that the target project still contains `s
 After the architect completes, validate every authored `.mcs.yml` component file under the target project, including skills, tools, knowledge, and any other component folders: PAC derives each Dataverse `botcomponent.schemaname` from the file stem, so every bot-component file stem must start with a valid customization prefix for the target environment and must be no more than 100 characters long. If needed, rename files to short prefixed stems such as `<publisher>_filename.mcs.yml` before pushing
 
 After that validation, delegate the push to the **Copilot Studio Manage** sub-agent (you can use the latest good, mid-tier AI model). Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow. Publishing is not necessary.
-
-
----
 
 ## Output Guidance
 
