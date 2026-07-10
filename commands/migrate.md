@@ -1,7 +1,7 @@
 ---
 description: Migrate a Copilot Studio agent from the previous architecture to the new agentic loop, cloning it first if it is not already present locally.
 argument-hint: Agent name or path to describe (and source environment if it must be cloned)
-allowed-tools: Bash(pac), Bash(node *convert-actions-to-tools.js*), Read, Write, Glob, Grep, Task
+allowed-tools: Bash(pac), Bash(node *convert-actions-to-tools.js*), Read, Write, Glob, Grep, WebFetch(domain:raw.githubusercontent.com), Task
 ---
 
 # Copilot Studio Agent Migration
@@ -24,7 +24,7 @@ Persist the approved plan so a stopped migration can be resumed:
 - Update that same file after each subsequent major step completes (tool migration, architect, push), so it always reflects current state.
 - At the start of a `/migrate` run, look for an existing `MIGRATION-PLAN-*.md` sibling to the resolved target/source workspace. If one exists and its plan is already approved, offer to resume from the next incomplete step instead of re-running describe and plan approval. If it exists but is not yet approved, re-present it for approval. If none exists, start fresh.
 
-### 1a. Ensure prerequisites
+### 1a. Verify the PAC CLI prerequisite (blocking)
 
 Before any command-specific work, run:
 
@@ -37,18 +37,29 @@ Read the PAC CLI version from the command output. Continue only when the install
 If `pac` is unavailable, the version cannot be determined, or the version is less than `2.9.3`, stop the migration and tell the user to install the required PAC CLI version from https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction#install-microsoft-power-platform-cli.
 Don't install PAC CLI yourself, except if the user explicitly requests it. If you do install it because the user explicitly asked you, the only installation allowed is the official `dotnet tool install --global Microsoft.PowerApps.CLI.Tool`. Instead, if the user is installing it themselves, you may also use different methods such as the windows-specific MSI or other platform-specific methods.
 
-### 1b. Ensure prerequisites
+### 1b. Check plugin health (best effort)
+
+Run both checks below before the migration logic. These checks are important but non-blocking: make one reasonable attempt using the documented locations, do not search alternative directories or repeatedly retry failures, and continue if a file, property, directory, remote response, or valid version cannot be obtained.
+
+First, read `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and get the `pluginRoot` for the current `mcs-assistant` plugin. Use that value for both checks.
+
+#### Legacy plugin
 
 The current plugin, `mcs-assistant@copilot-studio-plugin`, supports modern-orchestration agents. The legacy plugin, `copilot-studio@skills-for-copilot-studio`, supports only classic orchestration and may conflict with the current plugin.
-Before running migration logic, check whether the legacy plugin is installed:
 
-1. Read: `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')`
-2. From that file, get `pluginRoot` for the current `mcs-assistant` plugin.
-3. Go up two directory levels from `pluginRoot` to find the installed plugins root directory.
-4. Check whether the installed plugins root contains `skills-for-copilot-studio`.
+1. Go up two directory levels from `pluginRoot` to find the installed plugins root directory.
+2. Check whether that directory contains `skills-for-copilot-studio`.
+3. If it is present, warn the user that removing or disabling the legacy plugin is recommended, but continue the migration without requiring confirmation or removal.
 
-If `skills-for-copilot-studio` is found, stop the migration and tell the user that the legacy plugin is installed and must be removed or disabled because it may conflict with `mcs-assistant@copilot-studio-plugin`.
-If the check cannot be completed for any reason — for example, `plugin-paths.json` is missing, `pluginRoot` is unavailable, the installed plugins directory cannot be resolved, or the legacy plugin path is not found — continue safely.
+#### Current plugin version
+
+1. Read the installed version from the `version` property in `path.join(pluginRoot, '.claude-plugin', 'plugin.json')`.
+2. Fetch the available version from the `version` property at https://raw.githubusercontent.com/microsoft/copilot-studio-plugin/refs/heads/main/.claude-plugin/plugin.json.
+3. Compare the versions using semantic-version precedence, not lexicographic string ordering.
+4. If the available version is newer, pause before continuing and use `ask_user` to show both version numbers and ask whether the user wants to update first. Offer **Update before migrating** and **Continue without updating**. If they choose to update, stop this migration run so they can update and then rerun `/migrate`; do not update the plugin automatically. If they choose to continue, proceed with the installed version.
+5. If the installed version is current or newer, continue without prompting.
+
+If either check cannot be completed, briefly note which check was skipped and why, then continue. A Phase 1b failure must never stop the migration by itself.
 
 ### 2. Confirm the agent is available locally
 
