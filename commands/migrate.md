@@ -39,7 +39,7 @@ Don't install PAC CLI yourself, except if the user explicitly requests it. If yo
 
 ### 1b. Check plugin health (best effort)
 
-Run both checks below before the migration logic. These checks are important but non-blocking: make one reasonable attempt using the documented locations, do not search alternative directories or repeatedly retry failures, and continue if a file, property, directory, remote response, or valid version cannot be obtained.
+Run both checks below before the migration logic. These checks are important but non-blocking: make one reasonable attempt using the documented procedures and locations, but do not search alternative directories or repeatedly retry failures; you can continue if a file, property, directory, remote response, or valid version cannot be obtained.
 
 First, read `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and get the `pluginRoot` for the current `mcs-assistant` plugin. Use that value for both checks.
 
@@ -49,7 +49,7 @@ The current plugin, `mcs-assistant@copilot-studio-plugin`, supports modern-orche
 
 1. Go up two directory levels from `pluginRoot` to find the installed plugins root directory.
 2. Check whether that directory contains `skills-for-copilot-studio`.
-3. If it is present, warn the user that removing or disabling the legacy plugin is recommended, but continue the migration without requiring confirmation or removal.
+3. If it is present, pause and warn the user that removing or disabling the legacy plugin is recommended. Ask the user whether they want to remove or disable it, but continue the migration if they choose not to.
 
 #### Current plugin version
 
