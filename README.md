@@ -2,7 +2,7 @@
 
 This repository is the successor to [skills-for-copilot-studio](https://github.com/microsoft/skills-for-copilot-studio). It contains an experimental plugin for creating, editing, validating, and migrating Copilot Studio YAML projects.
 
-This plugin relies on the new version of the Power Platform CLI (`pac`), specifically version 2.9.1. A version greater that that is required to use the plugin. Install the latest version from [here](https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction?tabs=windows) or just grab it from the [nuget feed](https://www.nuget.org/packages/Microsoft.PowerApps.CLI).
+This plugin relies on the new version of the Power Platform CLI (`pac`), specifically version 2.9.3. A version greater that that is required to use the plugin. Install the latest version from [here](https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction?tabs=windows) or just grab it from the [nuget feed](https://www.nuget.org/packages/Microsoft.PowerApps.CLI).
 
 ## Disclaimer
 
