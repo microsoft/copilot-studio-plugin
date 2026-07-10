@@ -32,9 +32,9 @@ Before any command-specific work, run:
 pac
 ```
 
-Read the PAC CLI version from the command output. Continue only when the installed PAC CLI version is greater than or equal to `2.9.1`.
+Read the PAC CLI version from the command output. Continue only when the installed PAC CLI version is greater than or equal to `2.9.3`.
 
-If `pac` is unavailable, the version cannot be determined, or the version is less than `2.9.1`, stop the migration and tell the user to install the required PAC CLI version from https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction#install-microsoft-power-platform-cli.
+If `pac` is unavailable, the version cannot be determined, or the version is less than `2.9.3`, stop the migration and tell the user to install the required PAC CLI version from https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction#install-microsoft-power-platform-cli.
 Don't install PAC CLI yourself, except if the user explicitly requests it. If you do install it because the user explicitly asked you, the only installation allowed is the official `dotnet tool install --global Microsoft.PowerApps.CLI.Tool`. Instead, if the user is installing it themselves, you may also use different methods such as the windows-specific MSI or other platform-specific methods.
 
 ### 2. Confirm the agent is available locally
