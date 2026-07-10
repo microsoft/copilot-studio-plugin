@@ -24,7 +24,7 @@ Persist the approved plan so a stopped migration can be resumed:
 - Update that same file after each subsequent major step completes (tool migration, architect, push), so it always reflects current state.
 - At the start of a `/migrate` run, look for an existing `MIGRATION-PLAN-*.md` sibling to the resolved target/source workspace. If one exists and its plan is already approved, offer to resume from the next incomplete step instead of re-running describe and plan approval. If it exists but is not yet approved, re-present it for approval. If none exists, start fresh.
 
-### 1. Ensure prerequisites
+### 1a. Ensure prerequisites
 
 Before any command-specific work, run:
 
@@ -36,6 +36,19 @@ Read the PAC CLI version from the command output. Continue only when the install
 
 If `pac` is unavailable, the version cannot be determined, or the version is less than `2.9.3`, stop the migration and tell the user to install the required PAC CLI version from https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction#install-microsoft-power-platform-cli.
 Don't install PAC CLI yourself, except if the user explicitly requests it. If you do install it because the user explicitly asked you, the only installation allowed is the official `dotnet tool install --global Microsoft.PowerApps.CLI.Tool`. Instead, if the user is installing it themselves, you may also use different methods such as the windows-specific MSI or other platform-specific methods.
+
+### 1b. Ensure prerequisites
+
+The current plugin, `mcs-assistant@copilot-studio-plugin`, supports modern-orchestration agents. The legacy plugin, `copilot-studio@skills-for-copilot-studio`, supports only classic orchestration and may conflict with the current plugin.
+Before running migration logic, check whether the legacy plugin is installed:
+
+1. Read: `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')`
+2. From that file, get `pluginRoot` for the current `mcs-assistant` plugin.
+3. Go up two directory levels from `pluginRoot` to find the installed plugins root directory.
+4. Check whether the installed plugins root contains `skills-for-copilot-studio`.
+
+If `skills-for-copilot-studio` is found, stop the migration and tell the user that the legacy plugin is installed and must be removed or disabled because it may conflict with `mcs-assistant@copilot-studio-plugin`.
+If the check cannot be completed for any reason — for example, `plugin-paths.json` is missing, `pluginRoot` is unavailable, the installed plugins directory cannot be resolved, or the legacy plugin path is not found — continue safely.
 
 ### 2. Confirm the agent is available locally
 
