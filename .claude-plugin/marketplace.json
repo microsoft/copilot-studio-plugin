@@ -1,5 +1,5 @@
 {
-  "name": "skills-for-copilot-studio",
+  "name": "copilot-studio-plugin",
   "owner": {
     "name": "Microsoft Copilot Studio CAT Team"
   },
@@ -8,9 +8,9 @@
   },
   "plugins": [
     {
-      "name": "copilot-studio",
-      "description": "Microsoft Copilot Studio YAML authoring toolkit. Create, edit, validate, and test Copilot Studio agents using YAML files.",
-      "version": "2.0.0",
+      "name": "mcs-assistant",
+      "description": "Microsoft Copilot Studio new orchestration YAML authoring toolkit. Create, edit, validate, and test Copilot Studio agents using YAML files.",
+      "version": "1.0.0",
       "source": "./"
     }
   ]
