@@ -210,4 +210,4 @@ After that validation, delegate the push to the **Copilot Studio Manage** sub-ag
 
 ## Output Guidance
 
-Deliver the actual migration outcome: where the migrated modern agent YAML was written, which target files or component areas were changed, which migrated tools were preserved, and any unresolved gaps or assumptions. For the unresolved gaps/assumptions section, make sure to make it well-evident, possibly even using a different color for that section title. Do not stop at component guidance or a proposed design.
+Deliver the actual migration outcome, which should be complete and clear: where the migrated modern agent YAML was written, which target files or component areas were changed, which migrated tools were preserved, and any unresolved gaps or assumptions or manual tasks required. For the unresolved gaps/assumptions section, make sure to make it well-evident, possibly even using three "⚠️" emojis prefixing that section title. Do not stop at component guidance or a proposed design.
