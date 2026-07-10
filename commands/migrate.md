@@ -56,7 +56,7 @@ The current plugin, `mcs-assistant@copilot-studio-plugin`, supports modern-orche
 1. Read the installed version from the `version` property in `path.join(pluginRoot, '.claude-plugin', 'plugin.json')`.
 2. Fetch the available version from the `version` property at https://raw.githubusercontent.com/microsoft/copilot-studio-plugin/refs/heads/main/.claude-plugin/plugin.json.
 3. Compare the versions using semantic-version precedence, not lexicographic string ordering.
-4. If the available version is newer, pause before continuing and use `ask_user` to show both version numbers and ask whether the user wants to update first. Offer **Update before migrating** and **Continue without updating**. If they choose to update, stop this migration run so they can update and then rerun `/migrate`; do not update the plugin automatically. If they choose to continue, proceed with the installed version.
+4. If the available version is newer, pause before continuing and use `ask_user` to show both version numbers and ask whether the user wants to update first. Offer **Update before migrating** and **Continue without updating**. If they choose to update, tell them to run `/plugin update mcs-assistant@copilot-studio-plugin`, then stop this migration run so they can update and rerun `/migrate`; do not update the plugin automatically. If they choose to continue, proceed with the installed version.
 5. If the installed version is current or newer, continue without prompting.
 
 If either check cannot be completed, briefly note which check was skipped and why, then continue. A Phase 1b failure must never stop the migration by itself.
