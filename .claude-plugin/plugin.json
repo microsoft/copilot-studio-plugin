@@ -1,6 +1,6 @@
 {
   "name": "mcs-assistant",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Microsoft Copilot Studio new orchestration YAML authoring toolkit. Create, edit, validate, and test Copilot Studio agents using YAML files.",
   "author": {
     "name": "Microsoft Copilot Studio CAT Team"
