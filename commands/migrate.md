@@ -209,7 +209,7 @@ After the architect completes, confirm that the target project still contains `s
 
 After the architect completes, validate every authored `.mcs.yml` component file under the target project, including skills, tools, knowledge, and any other component folders: PAC derives each Dataverse `botcomponent.schemaname` from the file stem, so every bot-component file stem must start with a valid customization prefix for the target environment and must be no more than 100 characters long. If needed, rename files to short prefixed stems such as `<publisher>_filename.mcs.yml` before pushing
 
-After that validation, delegate the push to the **Copilot Studio Manage** sub-agent (you can use the latest good, mid-tier AI model). Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow. Publishing is not necessary.
+After that validation, delegate the push to the **Copilot Studio Manage** sub-agent (you can use the latest good, mid-tier AI model). There's no need to execute `pac copilot pack`, instead, you should prefer delegating to the **Copilot Studio Manage** sub-agent for `pac copilot push` instead. Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow. Publishing is not necessary.
 
 ## Output Guidance
 
