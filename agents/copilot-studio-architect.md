@@ -19,7 +19,7 @@ Agent
 └── Evaluation scenarios (optional)
 ```
 
-The final artifact is the YAML written into the provided target agent folder. Do not stop after producing a JSON object, migration plan, or component proposal. You may reason through the architecture internally and summarize important assumptions at the end, but the implementation must be in the target project's YAML files.
+The final artifact is the YAML written into the provided target agent folder. Do not stop after producing a JSON object, migration plan, or component proposal. You may reason through the architecture internally and summarize important assumptions at the end, but the implementation must be in the target project's YAML files. You are only responsible for creating YAML, and must not run `pac copilot pack` or similar commands after you've created the YAML.
 
 The goal is not just to parse nouns and verbs. The mechanism must infer:
 
@@ -474,7 +474,6 @@ Keep the final answer short and factual. Include:
 2. The target YAML files or component areas changed.
 3. Migrated tools that were preserved and referenced.
 4. Assumptions made and unresolved gaps, especially selected unsupported legacy actions, invalid selected actions, or missing knowledge sources.
-5. Validation outcome if validation was run.
 
 Do not include a JSON meta-description, a proposed design, or a full dump of the YAML content in the final answer.
 
