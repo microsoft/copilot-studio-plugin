@@ -19,6 +19,8 @@ function usage() {
       "  node convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> [--all] [--include <action-file...>] [--exclude <action-file...>] [--report <path>] [--clean]",
       "  node convert-actions-to-tools.js <legacy-actions-folder> --list [--include <action-file...>] [--exclude <action-file...>] [--report <path>]",
       "",
+      "Flow actions are resolved from the workflows folder next to the legacy actions folder.",
+      "",
       "Examples:",
       "  node convert-actions-to-tools.js \"C:\\Users\\gughini\\CopilotStudio\\SST\\actions\" \"C:\\Users\\gughini\\CopilotStudio\\dragent\\Giorgio2Clone\\capabilities\\tools\" --clean",
       "  node convert-actions-to-tools.js \"C:\\Users\\gughini\\CopilotStudio\\SST\\actions\" \"C:\\Users\\gughini\\CopilotStudio\\dragent\\Giorgio2Clone\\capabilities\\tools\" --include \"SQLServer-ExecuteaSQLqueryV2.mcs.yml\" \"Dataverse-Listrows.mcs.yml\" --report tools-report.json",
@@ -277,6 +279,160 @@ function baseMetadata(document, fallbackName) {
   };
 }
 
+function unsupportedWorkflow(reason) {
+  return { skipped: reason, supportStatus: "unsupported" };
+}
+
+function resolveWorkflowPackage(sourceFolder, flowId) {
+  const workflowsFolder = path.join(path.dirname(sourceFolder), "workflows");
+  if (!fs.existsSync(workflowsFolder) || !fs.statSync(workflowsFolder).isDirectory()) {
+    return unsupportedWorkflow(`Could not find sibling workflows folder for flow '${flowId}'`);
+  }
+
+  let workflowFolders;
+  try {
+    workflowFolders = fs
+      .readdirSync(workflowsFolder, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name.toLowerCase().endsWith(`-${flowId.toLowerCase()}`));
+  } catch (error) {
+    return unsupportedWorkflow(`Could not inspect workflows folder for flow '${flowId}': ${error.message}`);
+  }
+
+  if (workflowFolders.length === 0) {
+    return unsupportedWorkflow(`Could not match flow '${flowId}' to a workflow folder by ID suffix`);
+  }
+  if (workflowFolders.length > 1) {
+    return unsupportedWorkflow(`Flow '${flowId}' matched multiple workflow folders by ID suffix`);
+  }
+
+  const workflowFolder = path.join(workflowsFolder, workflowFolders[0].name);
+  const workflowJsonPath = path.join(workflowFolder, "workflow.json");
+  if (!fs.existsSync(workflowJsonPath) || !fs.statSync(workflowJsonPath).isFile()) {
+    return unsupportedWorkflow(`Matched workflow folder for flow '${flowId}' has no workflow.json`);
+  }
+
+  let workflow;
+  try {
+    const workflowText = fs.readFileSync(workflowJsonPath, "utf8").replace(/^\uFEFF/, "");
+    workflow = JSON.parse(workflowText);
+  } catch (error) {
+    return unsupportedWorkflow(`Could not parse workflow.json for flow '${flowId}': ${error.message}`);
+  }
+
+  const metadataPath = ["metadata.yml", "metadata.yaml"]
+    .map((fileName) => path.join(workflowFolder, fileName))
+    .find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
+  let metadata = {};
+  if (metadataPath) {
+    try {
+      metadata = parseYaml(fs.readFileSync(metadataPath, "utf8"));
+    } catch (error) {
+      return unsupportedWorkflow(`Could not parse workflow metadata for flow '${flowId}': ${error.message}`);
+    }
+  }
+
+  return {
+    workflow,
+    metadata,
+    workflowFolder,
+    workflowJsonPath,
+  };
+}
+
+function workflowInputDefinitions(workflow) {
+  const schema = workflow?.properties?.definition?.triggers?.manual?.inputs?.schema;
+  const properties = schema?.properties;
+  if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
+    return undefined;
+  }
+
+  return Object.entries(properties).map(([propertyName, property]) => {
+    const displayName = property?.title || propertyName;
+    return {
+      name: displayName,
+      displayName,
+      description: property?.description,
+    };
+  });
+}
+
+function workflowOutputDefinitions(workflow) {
+  const outputs = new Map();
+
+  function visit(node) {
+    if (!node || typeof node !== "object") return;
+
+    if (node.type === "Response" && node.kind === "Skills") {
+      const properties = node.inputs?.schema?.properties;
+      if (properties && typeof properties === "object" && !Array.isArray(properties)) {
+        for (const propertyName of Object.keys(properties)) {
+          outputs.set(propertyName, { name: propertyName });
+        }
+      }
+    }
+
+    for (const value of Object.values(node)) {
+      visit(value);
+    }
+  }
+
+  visit(workflow?.properties?.definition?.actions);
+  return [...outputs.values()];
+}
+
+function convertFlowAction(document, action, sourceFolder) {
+  if (!action.flowId) {
+    return { skipped: "Flow action is missing flowId" };
+  }
+
+  const workflowPackage = resolveWorkflowPackage(sourceFolder, String(action.flowId));
+  if (workflowPackage.skipped) {
+    return workflowPackage;
+  }
+
+  const inputs = workflowInputDefinitions(workflowPackage.workflow);
+  if (!inputs) {
+    return unsupportedWorkflow(`Workflow '${action.flowId}' has no manual trigger input schema`);
+  }
+  const outputs = workflowOutputDefinitions(workflowPackage.workflow);
+  const metadata = baseMetadata(document, "Converted workflow");
+  const description = workflowPackage.metadata.description || metadata.description;
+
+  const lines = [];
+  lines.push("mcs.metadata:");
+  lines.push(`  componentName: ${quoteYaml(metadata.componentName)}`);
+  if (description) lines.push(`  description: ${quoteYaml(description)}`);
+  lines.push("kind: WorkflowTool");
+  lines.push(`workflowId: ${quoteYaml(String(action.flowId))}`);
+
+  if (outputs.length > 0) {
+    lines.push("toolOutputs:");
+    for (const output of outputs) {
+      lines.push(`  - name: ${quoteYaml(output.name)}`);
+    }
+  }
+
+  if (inputs.length > 0) {
+    lines.push("toolInputs:");
+    for (const input of inputs) {
+      lines.push(`  - name: ${quoteYaml(input.name)}`);
+      lines.push(`    displayName: ${quoteYaml(input.displayName)}`);
+      if (input.description) lines.push(`    description: ${quoteYaml(input.description)}`);
+    }
+  }
+
+  return {
+    yaml: `${lines.join("\n")}\n`,
+    workflow: {
+      workflowId: String(action.flowId),
+      workflowFolder: workflowPackage.workflowFolder,
+      workflowJsonPath: workflowPackage.workflowJsonPath,
+      inputs,
+      outputs,
+    },
+  };
+}
+
 function convertConnectorAction(document, action) {
   const connectionReference = action.connectionReference;
   const connectorId = inferConnectorId(connectionReference);
@@ -346,7 +502,7 @@ function convertMcpAction(document, action) {
   return { yaml: `${lines.join("\n")}\n` };
 }
 
-function convertTaskDialog(document) {
+function convertTaskDialog(document, sourceFolder) {
   if (document.kind !== "TaskDialog") {
     return { skipped: `Unsupported top-level kind '${document.kind || "unknown"}'` };
   }
@@ -359,7 +515,7 @@ function convertTaskDialog(document) {
     return convertMcpAction(document, action);
   }
   if (action.kind === "InvokeFlowTaskAction") {
-    return { skipped: "Flow actions are not supported" };
+    return convertFlowAction(document, action, sourceFolder);
   }
   if (action.kind === "InvokeAIBuilderModelTaskAction") {
     return { skipped: "AI prompt actions are not supported" };
@@ -374,6 +530,7 @@ function actionOperationId(action) {
 
 function supportStatus(result) {
   if (!result.skipped) return "convertible";
+  if (result.supportStatus) return result.supportStatus;
   if (result.skipped.includes("missing")) return "invalid";
   return "unsupported";
 }
@@ -408,11 +565,15 @@ function inventoryEntry(fileName, document, result) {
     modelDescription: document.modelDescription,
     kind: document.kind,
     actionKind: action.kind,
+    flowId: action.flowId,
     connectionReference: action.connectionReference,
     connectorId: inferConnectorId(action.connectionReference),
     operationId: actionOperationId(action),
     inputs: Array.isArray(document.inputs) ? document.inputs.map(inventoryInput) : [],
     outputs: Array.isArray(document.outputs) ? document.outputs.map(inventoryOutput) : [],
+    workflowInputs: result.workflow?.inputs,
+    workflowOutputs: result.workflow?.outputs,
+    workflowFolder: result.workflow?.workflowFolder,
     supportStatus: supportStatus(result),
   };
 
@@ -427,7 +588,7 @@ function readAction(sourceFolder, fileName) {
   const sourcePath = path.join(sourceFolder, fileName);
   const text = fs.readFileSync(sourcePath, "utf8");
   const document = parseYaml(text);
-  const result = convertTaskDialog(document);
+  const result = convertTaskDialog(document, sourceFolder);
   return {
     document,
     result,
@@ -588,6 +749,7 @@ function printInventory(inventory) {
     console.log(`  modelDisplayName: ${indentInventoryValue(entry.modelDisplayName, 22)}`);
     console.log(`  modelDescription: ${indentInventoryValue(entry.modelDescription, 22)}`);
     console.log(`  action.operationId: ${indentInventoryValue(entry.operationId, 22)}`);
+    console.log(`  action.flowId: ${indentInventoryValue(entry.flowId, 17)}`);
   }
 }
 
