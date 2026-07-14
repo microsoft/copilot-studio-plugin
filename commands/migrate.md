@@ -93,7 +93,7 @@ Before building the user-approved migration plan, inspect the legacy action file
 node scripts\convert-actions-to-tools.js <legacy-actions-folder> --list
 ```
 
-Use the inventory and the describer report together to identify every legacy action's source file name, whole `mcs.metadata` object, `modelDisplayName`, `modelDescription`, `action.operationId`, support status, and likely relevance to the modern agent. The source file name is the stable selector to use later with `--include` or `--exclude`.
+Use the inventory and the describer report together to identify every legacy action's source file name, whole `mcs.metadata` object, `modelDisplayName`, `modelDescription`, `action.operationId` or `action.flowId` as applicable, support status, and likely relevance to the modern agent. For workflow actions, the converter resolves the sibling `workflows` folder by matching the `flowId` to the ID suffix in the workflow folder name and inventories the inputs and outputs extracted from `workflow.json`. The source file name is the stable selector to use later with `--include` or `--exclude`.
 
 ### 5b. Review and approve the migration plan (mandatory gate)
 
@@ -106,8 +106,8 @@ Before any tool migration or YAML implementation, the user must approve a **migr
      - `migrate`: convert this action into a modern tool.
      - `skip`: intentionally exclude this action/capability from the modern agent.
      - `manual`: do not auto-convert; the architect should implement the behavior another way or list it as a gap.
-     - `unsupported`: the action cannot be auto-converted; pass it to the architect for manual refactor or gap handling if the capability remains in scope.
-   - **Migration plan** — for each open gap the describer surfaced (e.g., duplicate regional knowledge as topics vs sub-agents, non-migratable ServiceNow flows, language handling, country allow-lists, cleanup), propose how to handle it in the migration with a recommended approach, not just an open question. Make these proposals concrete so the user can react to a plan rather than start from a blank page.
+     - `unsupported`: the action cannot be auto-converted; pass it to the architect for manual refactor or gap handling if the capability remains in scope. A workflow lookup failure is `unsupported`, because the architect may still be able to identify the renamed workflow folder and author the tool from `workflow.json`.
+   - **Migration plan** — for each open gap the describer surfaced (e.g., duplicate regional knowledge as topics vs sub-agents, non-migratable flows, language handling, country allow-lists, cleanup), propose how to handle it in the migration with a recommended approach, not just an open question. Make these proposals concrete so the user can react to a plan rather than start from a blank page.
    - Offer the full describer report on request.
 2. **Present the whole plan and ask for approval** using the `ask_user` tool. Offer only two explicit choices — **Approve** (proceed to migration) and **Stop** — plus the free-text "Other" option that `ask_user` provides. Do not add a separate "request changes" choice: the free-text "Other" already lets the user request changes or comment on any part of the plan (description corrections, a different gap resolution, added guidance). Make the prompt clear that typing in "Other" is how to request changes.
 3. **Iterate on comments.** If the user requests changes via the free-text answer, apply their feedback: for description corrections, send the feedback to the existing describer sub-agent (via `write_agent`) so it refines the same report with full context; for plan/gap-handling changes, update the proposals directly. Then re-present the **entire** plan in full again — the complete "what the new agent is for" paragraph, the full capabilities table with every row rendered, and the full migration plan — with the requested changes already applied. Do NOT show a diff, delta, or shorthand such as "same as above, minus the X row"; always render the whole updated plan from top to bottom so the user reviews the complete current state each round. Then ask for approval once more. Repeat until the user approves or stops.
@@ -131,7 +131,9 @@ Do not use `--clean` with `--include` or `--exclude`; partial migration must not
 
 Step 4: Capture the converted-tool report, including converted tools, unsupported or invalid selected actions, and intentionally excluded actions. Update the sibling `MIGRATION-PLAN-<random>.md` file with the tool migration result before proceeding.
 
-The script will convert supported connector and MCP actions, but will automatically skip workflows, AI Prompts, or other unsupported actions. If selected actions are unsupported, do not treat that as a failure by itself. Capture the skipped unsupported action list and pass it to the Architect agent so that the behavior can be manually refactored into instructions, skills, knowledge, or explicit open gaps.
+The script will convert supported connector, MCP, and workflow actions, but will automatically skip AI Prompts or other unsupported actions. Workflow conversion reads the matching classic `workflow.json`, emits only a `WorkflowTool` YAML under the target `capabilities\tools` folder, and does not copy `workflow.json` or any other classic workflow files into the modern agent. If a workflow folder cannot be matched automatically by its ID suffix, capture it as unsupported and tell the Architect agent to inspect the source `workflows` folder and attempt a semantic match before treating it as an open gap. If selected actions are unsupported, do not treat that as a failure by itself. Capture the skipped unsupported action list and pass it to the Architect agent so that the behavior can be manually refactored into instructions, skills, knowledge, or explicit open gaps.
+
+The converter initially uses the classic workflow package's default description, falling back to an action description only when the package has none. Treat that generated workflow-tool description as a placeholder: explicitly require the Architect agent to review every converted `WorkflowTool` and replace its `mcs.metadata.description` with a clear, purpose-specific tool description based on the approved capability plan and source workflow definition.
 
 Step 5: If no converted tools are connector-backed, skip this step. A connector-backed tool is any converted tool with: `kind: ConnectorTool` OR `connectorId` OR `connectionReference`
 
@@ -197,6 +199,7 @@ The architect sub-agent must receive:
 5. The complete Copilot Studio Describer report and the approved migration plan (including the agreed handling for every gap and every tool/action decision).
 6. The tool/action migration result, including migrated tools, intentionally excluded actions, unsupported skipped actions, and invalid selected actions.
 7. The user's decisions on the open gaps, as captured in the approved plan (step 5b).
+8. An explicit instruction to review every converted `WorkflowTool` description and improve generic classic-flow descriptions so they accurately explain when and why the modern agent should use the tool.
 
 Tell the architect explicitly that the final migration artifact is the YAML written under the target project directory. If the describer report identifies gaps or uncertainties in understanding the original agent, discuss implementation strategies with the user before proceeding, and highlight those to the architect so it can make reasonable assumptions where needed to complete the YAML implementation, while listing any unresolved gaps in its final response.
 
