@@ -38,6 +38,7 @@ Read broadly before reporting. Include all files that can explain behavior:
 - `settings.mcs.yml` (especially for the agent configuration, active capabilities, authentication, recognizer, model, and toggles)
 - Topics under `topics/` (somewhat useful to understand if there are some "conversational workflows")
 - Actions and connector definitions under `actions/` (and if those actions are triggered automatically, why, and when)
+- For `InvokeFlowTaskAction` actions, use the flow name and metadata first. When they do not sufficiently explain the behavior, match `action.flowId` to the ID suffix of its folder under `workflows/` and inspect `workflow.json` to understand the trigger inputs, processing steps, external dependencies, and response outputs.
 - Knowledge source files under `knowledge/` or equivalent folders. You do not need to read the actual source documents, but you must identify the configured knowledge source names/descriptions and URLs, to try to infer what they contain.
 - Variables, entities, dialogs, child agents, connected agents, and other agent-local YAML files
 - Other potential useful files
