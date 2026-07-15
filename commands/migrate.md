@@ -222,23 +222,35 @@ After that validation, delegate the push to the **Copilot Studio Manage** sub-ag
 
 #### 8a. Choose the target solution (mandatory)
 
-`pac copilot push` places the migrated agent and its components in the target environment's **default** solution. After a successful push, let the user decide whether to keep that default placement or add the migrated agent to a specific unmanaged solution, so it can be moved through ALM like any other customization.
+**Important:** `pac copilot init` (step 4) always creates and imports a *new* unmanaged solution named after the agent schema name (for example, schema `cat_AskHR` produces solution `cat_AskHR`). The migrated agent and its components live in that init-created solution after push — **not** in the environment's default solution. This step lets the user decide the agent's final home and cleans up that auto-created solution so no stray solution is left behind. Do **not** create any additional solutions in this workflow.
 
-1. **Offer the choice.** Use `ask_user` to ask where the migrated agent should live. Offer **Keep it in the default solution** as the first (recommended) choice and **Add it to an existing unmanaged solution** as the second. If the user keeps the default solution, record that decision in `MIGRATION-PLAN-<random>.md` and skip the rest of this step. Do not create new solutions in this workflow.
-2. **List candidate solutions.** If the user wants to pick a solution, list the environment's solutions with `pac solution list --environment <target-environment-id>` and present only the **unmanaged** ones (exclude managed solutions and the system `Default`/`Common Data Services Default Solution`) as a numbered pick-list by friendly name, showing each solution's unique name. If no eligible unmanaged solution exists, tell the user and fall back to keeping the default solution.
-3. **Add the agent to the chosen solution.** Delegate to the **Copilot Studio Manage** sub-agent to add the migrated agent (and its required components) to the selected solution using its Bot schema name (the `schemaName` in the target `settings.mcs.yml`):
+Capture the migrated agent's Bot ID (a GUID) and the init-created solution unique name (the agent schema name) before starting: the Bot ID is printed by `pac copilot init` as `Agent ID:` and is also stored as `AgentId` in the target project's `.mcs\conn.json`; the init solution unique name equals the `schemaName` in the target `settings.mcs.yml`.
 
-```powershell
-pac solution add-solution-component `
-  --environment <target-environment-id> `
-  --solutionUniqueName <chosen-solution-unique-name> `
-  --component <migrated-agent-schema-name> `
-  --componentType 10116 `
-  --AddRequiredComponents
-```
+1. **Offer the choice.** Use `ask_user` to ask where the migrated agent should live. Offer two choices plus the free-text option:
+   - **Save it in the default solution** (recommended) — the agent stays in the environment's default solution; the user can add it to a solution later.
+   - **Add it to an existing unmanaged solution** — pick from solutions already in the environment.
+   Do not offer to create a new solution.
+2. **Place the agent, then delete the init solution.** Delegate the `pac solution` operations to the **Copilot Studio Manage** sub-agent.
+   - **If the user chose the default solution:** simply delete the init-created solution. Its components (the Bot and its bot components) are not deleted; they revert to the environment's default solution.
 
-`--componentType 10116` is the Dataverse component type for a Bot; `--AddRequiredComponents` pulls the agent's dependent bot components into the same solution so you do not have to add each one individually. If PAC rejects the component type for this environment, do not guess repeatedly: report the exact error and confirm the current Bot component-type value before retrying, and treat the associated `BotComponent` type (`10117`) as the fallback for individually adding child components.
-4. **Confirm and record.** Confirm the command succeeded, then record the chosen solution unique name (or the default-solution decision) in `MIGRATION-PLAN-<random>.md`.
+     ```powershell
+     pac solution delete --solution-name <init-solution-unique-name> --environment <target-environment-id>
+     ```
+   - **If the user chose an existing unmanaged solution:** list the environment's solutions with `pac solution list --environment <target-environment-id>`, present only the **unmanaged** ones (exclude managed solutions and the system `Default` / `Common Data Services Default Solution`) as a numbered pick-list by friendly name showing each unique name, and let the user pick one. If no eligible unmanaged solution exists, tell the user and fall back to the default-solution behavior above. Then add the migrated agent (and its required components) to the chosen solution, and delete the init-created solution afterward:
+
+     ```powershell
+     pac solution add-solution-component `
+       --environment <target-environment-id> `
+       --solutionUniqueName <chosen-solution-unique-name> `
+       --component <migrated-agent-bot-id> `
+       --componentType Bot `
+       --AddRequiredComponents
+
+     pac solution delete --solution-name <init-solution-unique-name> --environment <target-environment-id>
+     ```
+
+   Pass `--componentType Bot` by **name** (PAC auto-resolves the component-type id; do not pass a numeric id, which PAC rejects) and pass `--component` as the Bot **ID/GUID** (the bot schema name does not resolve here). `--AddRequiredComponents` brings the agent's dependent bot components into the chosen solution.
+3. **Confirm and record.** Confirm the commands succeeded (and that the migrated agent still appears in `pac copilot list`), then record the chosen destination — default solution or the chosen solution unique name — plus the fact that the init-created solution was deleted, in `MIGRATION-PLAN-<random>.md`.
 
 ## Output Guidance
 

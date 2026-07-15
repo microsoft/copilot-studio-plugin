@@ -122,6 +122,8 @@ Keep the final answer short and factual. Include:
 2. The target environment ID.
 3. The target project directory.
 4. The publisher prefix used (and the schema name if one was provided).
-5. Confirmation that `pac copilot init` completed.
+5. The migrated agent's Bot ID (the `Agent ID:` printed by `pac copilot init`).
+6. The unique name of the unmanaged solution that `pac copilot init` created and imported (this equals the agent schema name); downstream steps use it to set the agent's final solution and to clean up this init-created solution.
+7. Confirmation that `pac copilot init` completed.
 
 Do not include migration design, source-agent analysis, or recommendations.
