@@ -73,7 +73,16 @@ You'd need to initialize the new/migrated agent, and for its display name you sh
 
 Use a new target project directory in the workspace named exactly like the migrated agent display name (`<source displayName> (migrated)`) unless the user explicitly supplied a different directory.
 
-Delegate initialization to the **Copilot Studio Init** sub-agent (you can use the latest good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, and environment ID. Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
+#### 4a. Choose the publisher prefix and schema name (mandatory)
+
+Before delegating to the init sub-agent, let the user control the customization prefix and schema name that identify the migrated agent and its components, instead of silently using the plugin default (`catmgr`).
+
+1. **Publisher prefix.** Use `ask_user` to ask which publisher customization prefix to use for the migrated agent and all of its components (for example, `zava`). Offer the plugin default `catmgr` as the first (recommended) choice, and let the user type their own via the free-text option. Validate the chosen prefix before continuing: it must be 2-8 characters, start with a letter, contain only lowercase letters and digits, and must not be `mscrm` or start with `crm` (these are reserved). If the value is invalid, explain why and ask again. Prefixes are lowercased by Dataverse, so normalize the user's answer to lowercase.
+2. **Schema name (optional).** Ask whether the user wants a custom full agent schema name or to accept the default derivation `{publisher-prefix}_{sanitized-name}`. Offer **Use the default derived schema name** as the first (recommended) choice. If the user provides a custom schema name, it is used as-is by PAC, so validate that it starts with the chosen `<prefix>_` and otherwise leave it untouched. If the user accepts the default, do not pass a schema name and let PAC derive it.
+
+Record the approved publisher prefix and (if any) schema name so they can be passed to the init sub-agent and captured in `MIGRATION-PLAN-<random>.md`.
+
+Delegate initialization to the **Copilot Studio Init** sub-agent (you can use the latest good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, environment ID, the approved publisher prefix, and the custom schema name if one was provided (otherwise tell it to use the default derivation). Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
 
 After the init sub-agent completes, confirm the target agent's `settings.mcs.yml` exists before continuing. This step MUST be completed before migrating tools or implementing migration steps, but can be run in parallel with the "describe old agent" step.
 
@@ -207,9 +216,29 @@ After the architect completes, confirm that the target project still contains `s
 
 ### 8. Push the migrated agent to the target environment
 
-After the architect completes, validate every authored `.mcs.yml` component file under the target project, including skills, tools, knowledge, and any other component folders: PAC derives each Dataverse `botcomponent.schemaname` from the file stem, so every bot-component file stem must start with a valid customization prefix for the target environment and must be no more than 100 characters long. If needed, rename files to short prefixed stems such as `<publisher>_filename.mcs.yml` before pushing
+After the architect completes, validate every authored `.mcs.yml` component file under the target project, including skills, tools, knowledge, and any other component folders: PAC derives each Dataverse `botcomponent.schemaname` from the file stem, so every bot-component file stem must start with a valid customization prefix for the target environment and must be no more than 100 characters long. Use the publisher prefix approved in step 4a. If needed, rename files to short prefixed stems such as `<approved-prefix>_filename.mcs.yml` before pushing
 
 After that validation, delegate the push to the **Copilot Studio Manage** sub-agent (you can use the latest good, mid-tier AI model). There's no need to execute `pac copilot pack`, instead, you should prefer delegating to the **Copilot Studio Manage** sub-agent for `pac copilot push` instead. Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow. Publishing is not necessary.
+
+#### 8a. Choose the target solution (mandatory)
+
+`pac copilot push` places the migrated agent and its components in the target environment's **default** solution. After a successful push, let the user decide whether to keep that default placement or add the migrated agent to a specific unmanaged solution, so it can be moved through ALM like any other customization.
+
+1. **Offer the choice.** Use `ask_user` to ask where the migrated agent should live. Offer **Keep it in the default solution** as the first (recommended) choice and **Add it to an existing unmanaged solution** as the second. If the user keeps the default solution, record that decision in `MIGRATION-PLAN-<random>.md` and skip the rest of this step. Do not create new solutions in this workflow.
+2. **List candidate solutions.** If the user wants to pick a solution, list the environment's solutions with `pac solution list --environment <target-environment-id>` and present only the **unmanaged** ones (exclude managed solutions and the system `Default`/`Common Data Services Default Solution`) as a numbered pick-list by friendly name, showing each solution's unique name. If no eligible unmanaged solution exists, tell the user and fall back to keeping the default solution.
+3. **Add the agent to the chosen solution.** Delegate to the **Copilot Studio Manage** sub-agent to add the migrated agent (and its required components) to the selected solution using its Bot schema name (the `schemaName` in the target `settings.mcs.yml`):
+
+```powershell
+pac solution add-solution-component `
+  --environment <target-environment-id> `
+  --solutionUniqueName <chosen-solution-unique-name> `
+  --component <migrated-agent-schema-name> `
+  --componentType 10116 `
+  --AddRequiredComponents
+```
+
+`--componentType 10116` is the Dataverse component type for a Bot; `--AddRequiredComponents` pulls the agent's dependent bot components into the same solution so you do not have to add each one individually. If PAC rejects the component type for this environment, do not guess repeatedly: report the exact error and confirm the current Bot component-type value before retrying, and treat the associated `BotComponent` type (`10117`) as the fallback for individually adding child components.
+4. **Confirm and record.** Confirm the command succeeded, then record the chosen solution unique name (or the default-solution decision) in `MIGRATION-PLAN-<random>.md`.
 
 ## Output Guidance
 

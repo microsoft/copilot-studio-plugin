@@ -16,6 +16,7 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 
 - Use `pac copilot` commands for agent ALM. Do not use `scripts/manage-agent.bundle.js` or any `scripts/src/manage-agent.js` source code.
 - Supported replaced features: clone, pull, push, publish, and list agents.
+- Adding a pushed agent to a target unmanaged solution is supported via `pac solution list` and `pac solution add-solution-component`. This is the only `pac solution` usage in scope, and only for placing an already-pushed migrated agent into a caller-chosen solution. Do not use other `pac solution` verbs (init, import, export, pack, clone, delete, upgrade, etc.).
 - Do not add PAC features that were not part of the old management flow, such as create, delete, init, pack, quarantine, status polling, translations, AI model commands, or MCP commands.
 - Standalone local-vs-remote diff and standalone YAML validation were script-only capabilities. Do not offer or run them as manage-agent features.
 - Listing environments is not part of the attached PAC copilot command set. If an environment is needed and is not already known, ask the user for the environment ID or Dataverse URL.
@@ -60,6 +61,7 @@ For existing local workspaces:
 - Pull and push require only the project directory.
 - Publish and list agents require an environment ID or Dataverse URL.
 - Publish also requires a bot ID or schema name. Prefer a schema name or bot ID already present in the project files or user-provided context. If it is not available, ask the user.
+- Adding the agent to a target solution requires an environment ID or Dataverse URL, the agent's Bot schema name (from `settings.mcs.yml`), and the chosen solution's unique name.
 
 For clone:
 
@@ -138,6 +140,26 @@ pac copilot list --environment "<environment-id-or-dataverse-url>"
 
 PAC returns a text table for copilots in the target environment. Do not claim owner-only filtering unless the PAC output itself provides that distinction.
 
+#### Add agent to a target solution (post-push)
+
+`pac copilot push` places the agent and its components in the target environment's default solution. When the caller wants the migrated agent in a specific unmanaged solution, add it after a successful push.
+
+Requires the target environment ID, the agent's Bot schema name (the `schemaName` in `settings.mcs.yml`), and the chosen solution's unique name.
+
+1. List candidate solutions and present only the unmanaged ones (exclude managed solutions and the system default solution) as a numbered pick-list showing friendly name and unique name:
+
+```bash
+pac solution list --environment "<environment-id-or-dataverse-url>"
+```
+
+2. Add the agent (and its dependent bot components) to the chosen solution:
+
+```bash
+pac solution add-solution-component --environment "<environment-id-or-dataverse-url>" --solutionUniqueName "<chosen-solution-unique-name>" --component "<agent-schema-name>" --componentType 10116 --AddRequiredComponents
+```
+
+`--componentType 10116` is the Dataverse component type for a Bot; `--AddRequiredComponents` brings the agent's dependent bot components into the same solution. If PAC rejects the component type for the environment, report the exact error and confirm the current Bot component-type value before retrying rather than guessing; the associated `BotComponent` type is `10117`. Only run this after a successful push, because the components must already exist in the environment.
+
 ## Dropped script-only capabilities
 
 The old Node.js management script exposed commands that are not part of this PAC replacement flow:
@@ -162,6 +184,7 @@ PAC commands generally write human-readable text or tables rather than the old s
 | Destination folder is not empty | PAC clone will not overwrite existing files | Choose a new output root or folder name; do not delete user files without explicit approval. |
 | Push asks to pull first or reports conflicts | Remote and local content both changed | Run pull, resolve resulting file conflicts with the user, then push again. |
 | Publish fails | Insufficient permissions, wrong environment, or wrong bot ID/schema name | Verify permissions, environment, and bot identifier, then retry. |
+| `add-solution-component` fails | Agent not yet pushed, wrong solution unique name, target solution is managed, or wrong component type | Confirm the push succeeded, verify the solution unique name from `pac solution list` and that it is unmanaged, and confirm the Bot component-type value before retrying. |
 
 ## Final answer
 
