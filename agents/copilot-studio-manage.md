@@ -152,7 +152,7 @@ Requires the target environment ID, the migrated agent's **Bot ID (GUID)** (prin
 pac solution delete --solution-name "<init-solution-unique-name>" --environment "<environment-id-or-dataverse-url>"
 ```
 
-- **Final home = an existing unmanaged solution:** list solutions and present only the unmanaged ones (exclude managed solutions and the system default solution) as a numbered pick-list showing friendly name and unique name; add the agent to the chosen solution; then delete the init-created solution.
+- **Final home = an existing unmanaged solution:** list solutions and present only the unmanaged ones (exclude managed solutions, the system default solutions — both `Default Solution` and `Common Data Services Default Solution` — and the init-created solution itself) as a numbered pick-list showing friendly name and unique name; add the agent to the chosen solution; then delete the init-created solution.
 
 ```bash
 pac solution list --environment "<environment-id-or-dataverse-url>"

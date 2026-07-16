@@ -236,7 +236,7 @@ Capture the migrated agent's Bot ID (a GUID) and the init-created solution uniqu
      ```powershell
      pac solution delete --solution-name <init-solution-unique-name> --environment <target-environment-id>
      ```
-   - **If the user chose an existing unmanaged solution:** list the environment's solutions with `pac solution list --environment <target-environment-id>`, present only the **unmanaged** ones (exclude managed solutions and the system `Default` / `Common Data Services Default Solution`) as a numbered pick-list by friendly name showing each unique name, and let the user pick one. If no eligible unmanaged solution exists, tell the user and fall back to the default-solution behavior above. Then add the migrated agent (and its required components) to the chosen solution, and delete the init-created solution afterward:
+   - **If the user chose an existing unmanaged solution:** list the environment's solutions with `pac solution list --environment <target-environment-id>`, present only the **unmanaged** ones (exclude managed solutions, the system `Default` / `Common Data Services Default Solution`, and the init-created solution itself) as a numbered pick-list by friendly name showing each unique name, and let the user pick one. If no eligible unmanaged solution exists, tell the user and fall back to the default-solution behavior above. Then add the migrated agent (and its required components) to the chosen solution, and delete the init-created solution afterward:
 
      ```powershell
      pac solution add-solution-component `
