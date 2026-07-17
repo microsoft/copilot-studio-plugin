@@ -24,6 +24,8 @@ You need these inputs before doing any setup:
 2. Target project directory.
 3. Target environment ID.
 
+You may also receive a publisher prefix for the solution and components (the caller-approved customization prefix, e.g. `zava`). If the caller does not provide one, fall back to the default `catmgr`.
+
 The caller should provide the target display name explicitly. In migration workflows, the new target display name is usually derived from the source agent display name by appending ` (migrated)` to it. For example, if the source agent display name is `MyAgent`, the target display name should be `MyAgent (migrated)`.
 
 If the target display name, target project directory, or target environment ID is still missing, ask for the missing value and stop until it is provided.
@@ -34,7 +36,7 @@ Use these constants exactly unless the user explicitly gives different values:
 
 | Value | Rule |
 |---|---|
-| Publisher prefix | `catmgr` |
+| Publisher prefix | Provided by caller; defaults to `catmgr` when not supplied |
 | Authoring mode | `cli-copilot` |
 | Target display name | Provided by caller, usually `<source displayName> (migrated)` |
 | Target project directory | Provided by caller |
@@ -61,6 +63,7 @@ $ErrorActionPreference = "Stop"
 $TARGET_DISPLAY_NAME = "<target migrated agent display name>"
 $TARGET_PROJECT_DIR = "<target project directory>"
 $ENVIRONMENT_ID = "<environment-id>"
+$PUBLISHER_PREFIX = "<caller-approved-prefix-or-catmgr>"
 
 if ([string]::IsNullOrWhiteSpace($TARGET_DISPLAY_NAME)) {
   throw "Target display name is required."
@@ -70,6 +73,9 @@ if ([string]::IsNullOrWhiteSpace($TARGET_PROJECT_DIR)) {
 }
 if ([string]::IsNullOrWhiteSpace($ENVIRONMENT_ID)) {
   throw "Environment ID is required."
+}
+if ([string]::IsNullOrWhiteSpace($PUBLISHER_PREFIX)) {
+  $PUBLISHER_PREFIX = "catmgr"
 }
 if (Test-Path $TARGET_PROJECT_DIR) {
   throw "Target project directory already exists: $TARGET_PROJECT_DIR"
@@ -81,7 +87,7 @@ if (Test-Path $TARGET_PROJECT_DIR) {
 ```powershell
 pac copilot init `
   --name "$TARGET_DISPLAY_NAME" `
-  --publisher-prefix catmgr `
+  --publisher-prefix $PUBLISHER_PREFIX `
   --authoring-mode cli-copilot `
   --project-dir "$TARGET_PROJECT_DIR" `
   --environment "$ENVIRONMENT_ID"
@@ -96,6 +102,7 @@ Keep the final answer short and factual. Include:
 1. The target agent display name.
 2. The target environment ID.
 3. The target project directory.
-4. Confirmation that `pac copilot init` completed.
+4. The publisher prefix used.
+5. Confirmation that `pac copilot init` completed.
 
 Do not include migration design, source-agent analysis, or recommendations.

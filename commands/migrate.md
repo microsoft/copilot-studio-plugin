@@ -73,7 +73,15 @@ You'd need to initialize the new/migrated agent, and for its display name you sh
 
 Use a new target project directory in the workspace named exactly like the migrated agent display name (`<source displayName> (migrated)`) unless the user explicitly supplied a different directory.
 
-Delegate initialization to the **Copilot Studio Init** sub-agent (you can use the latest good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, and environment ID. Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
+#### 4a. Choose the publisher prefix (mandatory)
+
+Before delegating to the init sub-agent, let the user control the publisher customization prefix used by the migrated agent and its components instead of silently using the plugin default (`catmgr`).
+
+Use `ask_user` to ask which publisher customization prefix to use (for example, `zava`). Offer the plugin default `catmgr` as the first (recommended) choice, and let the user type their own via the free-text option. Validate the chosen prefix before continuing: it must be 2-8 alphanumeric characters, start with a letter, and must not start with `mscrm` (case-insensitive). Preserve the user's casing. If the value is invalid, explain why and ask again.
+
+Record the approved publisher prefix so it can be passed to the init sub-agent and captured in `MIGRATION-PLAN-<random>.md`.
+
+Delegate initialization to the **Copilot Studio Init** sub-agent (you can use the latest good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, environment ID, and approved publisher prefix. Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
 
 After the init sub-agent completes, confirm the target agent's `settings.mcs.yml` exists before continuing. This step MUST be completed before migrating tools or implementing migration steps, but can be run in parallel with the "describe old agent" step.
 
@@ -207,7 +215,7 @@ After the architect completes, confirm that the target project still contains `s
 
 ### 8. Push the migrated agent to the target environment
 
-After the architect completes, validate every authored `.mcs.yml` component file under the target project, including skills, tools, knowledge, and any other component folders: PAC derives each Dataverse `botcomponent.schemaname` from the file stem, so every bot-component file stem must start with a valid customization prefix for the target environment and must be no more than 100 characters long. If needed, rename files to short prefixed stems such as `<publisher>_filename.mcs.yml` before pushing
+After the architect completes, validate every authored `.mcs.yml` component file under the target project, including skills, tools, knowledge, and any other component folders: PAC derives each Dataverse `botcomponent.schemaname` from the file stem, so every bot-component file stem must start with a valid customization prefix for the target environment and must be no more than 100 characters long. Use the publisher prefix approved in step 4a. If needed, rename files to short prefixed stems such as `<approved-prefix>_filename.mcs.yml` before pushing
 
 After that validation, delegate the push to the **Copilot Studio Manage** sub-agent (you can use the latest good, mid-tier AI model). There's no need to execute `pac copilot pack`, instead, you should prefer delegating to the **Copilot Studio Manage** sub-agent for `pac copilot push` instead. Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow. Publishing is not necessary.
 
