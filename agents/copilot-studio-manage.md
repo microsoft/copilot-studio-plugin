@@ -16,7 +16,6 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 
 - Use `pac copilot` commands for agent ALM. Do not use `scripts/manage-agent.bundle.js` or any `scripts/src/manage-agent.js` source code.
 - Supported replaced features: clone, pull, push, publish, and list agents.
-- Adding a pushed agent to a target unmanaged solution and setting its final solution home is supported via `pac solution list`, `pac solution add-solution-component`, and `pac solution delete` (only to remove the init-created solution after the agent has been placed in its final home). These are the only `pac solution` usages in scope. Do not use other `pac solution` verbs (init, import, export, pack, clone, upgrade, etc.) and never create new solutions.
 - Do not add PAC features that were not part of the old management flow, such as create, delete, init, pack, quarantine, status polling, translations, AI model commands, or MCP commands.
 - Standalone local-vs-remote diff and standalone YAML validation were script-only capabilities. Do not offer or run them as manage-agent features.
 - Listing environments is not part of the attached PAC copilot command set. If an environment is needed and is not already known, ask the user for the environment ID or Dataverse URL.
@@ -61,7 +60,6 @@ For existing local workspaces:
 - Pull and push require only the project directory.
 - Publish and list agents require an environment ID or Dataverse URL.
 - Publish also requires a bot ID or schema name. Prefer a schema name or bot ID already present in the project files or user-provided context. If it is not available, ask the user.
-- Setting the migrated agent's final solution requires the target environment ID, the agent's Bot ID (the GUID from `pac copilot init` output / `AgentId` in `.mcs\conn.json`), the init-created solution's unique name (the `schemaName` in `settings.mcs.yml`), and — when targeting an existing solution — that solution's unique name.
 
 For clone:
 
@@ -140,28 +138,6 @@ pac copilot list --environment "<environment-id-or-dataverse-url>"
 
 PAC returns a text table for copilots in the target environment. Do not claim owner-only filtering unless the PAC output itself provides that distinction.
 
-#### Add agent to a target solution / set its final solution (post-push)
-
-`pac copilot init` creates and imports a *new* unmanaged solution named after the agent schema name, so after push the migrated agent lives in that init-created solution — not the environment's default solution. Use this operation to place the agent in its intended final home and delete the init-created solution so no stray solution remains.
-
-Requires the target environment ID, the migrated agent's **Bot ID (GUID)** (printed by `pac copilot init` as `Agent ID:` and stored as `AgentId` in `.mcs\conn.json`), and the init-created solution's unique name (equal to the `schemaName` in `settings.mcs.yml`).
-
-- **Final home = default solution:** delete the init-created solution. Its components (the Bot and its bot components) are not deleted; they revert to the environment's default solution.
-
-```bash
-pac solution delete --solution-name "<init-solution-unique-name>" --environment "<environment-id-or-dataverse-url>"
-```
-
-- **Final home = an existing unmanaged solution:** list solutions and present only the unmanaged ones (exclude managed solutions, the system default solutions — both `Default Solution` and `Common Data Services Default Solution` — and the init-created solution itself) as a numbered pick-list showing friendly name and unique name; add the agent to the chosen solution; then delete the init-created solution.
-
-```bash
-pac solution list --environment "<environment-id-or-dataverse-url>"
-pac solution add-solution-component --environment "<environment-id-or-dataverse-url>" --solutionUniqueName "<chosen-solution-unique-name>" --component "<migrated-agent-bot-id>" --componentType Bot --AddRequiredComponents
-pac solution delete --solution-name "<init-solution-unique-name>" --environment "<environment-id-or-dataverse-url>"
-```
-
-Pass `--componentType Bot` by **name** (PAC auto-resolves the id; a numeric id such as `10116` is rejected) and pass `--component` as the Bot **ID/GUID** (a bot schema name does not resolve). `--AddRequiredComponents` brings the agent's dependent bot components along. Only run this after a successful push, and never create new solutions here. After the operation, confirm the agent still appears in `pac copilot list`.
-
 ## Dropped script-only capabilities
 
 The old Node.js management script exposed commands that are not part of this PAC replacement flow:
@@ -186,7 +162,6 @@ PAC commands generally write human-readable text or tables rather than the old s
 | Destination folder is not empty | PAC clone will not overwrite existing files | Choose a new output root or folder name; do not delete user files without explicit approval. |
 | Push asks to pull first or reports conflicts | Remote and local content both changed | Run pull, resolve resulting file conflicts with the user, then push again. |
 | Publish fails | Insufficient permissions, wrong environment, or wrong bot ID/schema name | Verify permissions, environment, and bot identifier, then retry. |
-| `add-solution-component` fails | Agent not yet pushed, wrong solution unique name, target solution is managed, numeric component type, or bot passed by schema name | Confirm the push succeeded; verify the solution unique name from `pac solution list` and that it is unmanaged; pass `--componentType Bot` by name (not a numeric id); pass `--component` as the Bot GUID (not the schema name). |
 
 ## Final answer
 

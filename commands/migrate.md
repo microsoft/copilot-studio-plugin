@@ -73,16 +73,15 @@ You'd need to initialize the new/migrated agent, and for its display name you sh
 
 Use a new target project directory in the workspace named exactly like the migrated agent display name (`<source displayName> (migrated)`) unless the user explicitly supplied a different directory.
 
-#### 4a. Choose the publisher prefix and schema name (mandatory)
+#### 4a. Choose the publisher prefix (mandatory)
 
-Before delegating to the init sub-agent, let the user control the customization prefix and schema name that identify the migrated agent and its components, instead of silently using the plugin default (`catmgr`).
+Before delegating to the init sub-agent, let the user control the publisher customization prefix used by the migrated agent and its components instead of silently using the plugin default (`catmgr`).
 
-1. **Publisher prefix.** Use `ask_user` to ask which publisher customization prefix to use for the migrated agent and all of its components (for example, `zava`). Offer the plugin default `catmgr` as the first (recommended) choice, and let the user type their own via the free-text option. Validate the chosen prefix before continuing: it must be 2-8 characters, start with a letter, contain only lowercase letters and digits, and must not be `mscrm` or start with `crm` (these are reserved). If the value is invalid, explain why and ask again. Prefixes are lowercased by Dataverse, so normalize the user's answer to lowercase.
-2. **Schema name (optional).** Ask whether the user wants a custom full agent schema name or to accept the default derivation `{publisher-prefix}_{sanitized-name}`. Offer **Use the default derived schema name** as the first (recommended) choice. If the user provides a custom schema name, it is used as-is by PAC, so validate that it starts with the chosen `<prefix>_` and otherwise leave it untouched. If the user accepts the default, do not pass a schema name and let PAC derive it.
+Use `ask_user` to ask which publisher customization prefix to use (for example, `zava`). Offer the plugin default `catmgr` as the first (recommended) choice, and let the user type their own via the free-text option. Validate the chosen prefix before continuing: it must be 2-8 alphanumeric characters, start with a letter, and must not start with `mscrm` (case-insensitive). Preserve the user's casing. If the value is invalid, explain why and ask again.
 
-Record the approved publisher prefix and (if any) schema name so they can be passed to the init sub-agent and captured in `MIGRATION-PLAN-<random>.md`.
+Record the approved publisher prefix so it can be passed to the init sub-agent and captured in `MIGRATION-PLAN-<random>.md`.
 
-Delegate initialization to the **Copilot Studio Init** sub-agent (you can use the latest good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, environment ID, the approved publisher prefix, and the custom schema name if one was provided (otherwise tell it to use the default derivation). Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
+Delegate initialization to the **Copilot Studio Init** sub-agent (you can use the latest good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, environment ID, and approved publisher prefix. Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
 
 After the init sub-agent completes, confirm the target agent's `settings.mcs.yml` exists before continuing. This step MUST be completed before migrating tools or implementing migration steps, but can be run in parallel with the "describe old agent" step.
 
@@ -219,38 +218,6 @@ After the architect completes, confirm that the target project still contains `s
 After the architect completes, validate every authored `.mcs.yml` component file under the target project, including skills, tools, knowledge, and any other component folders: PAC derives each Dataverse `botcomponent.schemaname` from the file stem, so every bot-component file stem must start with a valid customization prefix for the target environment and must be no more than 100 characters long. Use the publisher prefix approved in step 4a. If needed, rename files to short prefixed stems such as `<approved-prefix>_filename.mcs.yml` before pushing
 
 After that validation, delegate the push to the **Copilot Studio Manage** sub-agent (you can use the latest good, mid-tier AI model). There's no need to execute `pac copilot pack`, instead, you should prefer delegating to the **Copilot Studio Manage** sub-agent for `pac copilot push` instead. Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow. Publishing is not necessary.
-
-#### 8a. Choose the target solution (mandatory)
-
-**Important:** `pac copilot init` (step 4) always creates and imports a *new* unmanaged solution named after the agent schema name (for example, schema `cat_AskHR` produces solution `cat_AskHR`). The migrated agent and its components live in that init-created solution after push — **not** in the environment's default solution. This step lets the user decide the agent's final home and cleans up that auto-created solution so no stray solution is left behind. Do **not** create any additional solutions in this workflow.
-
-Capture the migrated agent's Bot ID (a GUID) and the init-created solution unique name (the agent schema name) before starting: the Bot ID is printed by `pac copilot init` as `Agent ID:` and is also stored as `AgentId` in the target project's `.mcs\conn.json`; the init solution unique name equals the `schemaName` in the target `settings.mcs.yml`.
-
-1. **Offer the choice.** Use `ask_user` to ask where the migrated agent should live. Offer two choices plus the free-text option:
-   - **Save it in the default solution** (recommended) — the agent stays in the environment's default solution; the user can add it to a solution later.
-   - **Add it to an existing unmanaged solution** — pick from solutions already in the environment.
-   Do not offer to create a new solution.
-2. **Place the agent, then delete the init solution.** Delegate the `pac solution` operations to the **Copilot Studio Manage** sub-agent.
-   - **If the user chose the default solution:** simply delete the init-created solution. Its components (the Bot and its bot components) are not deleted; they revert to the environment's default solution.
-
-     ```powershell
-     pac solution delete --solution-name <init-solution-unique-name> --environment <target-environment-id>
-     ```
-   - **If the user chose an existing unmanaged solution:** list the environment's solutions with `pac solution list --environment <target-environment-id>`, present only the **unmanaged** ones (exclude managed solutions, the system `Default` / `Common Data Services Default Solution`, and the init-created solution itself) as a numbered pick-list by friendly name showing each unique name, and let the user pick one. If no eligible unmanaged solution exists, tell the user and fall back to the default-solution behavior above. Then add the migrated agent (and its required components) to the chosen solution, and delete the init-created solution afterward:
-
-     ```powershell
-     pac solution add-solution-component `
-       --environment <target-environment-id> `
-       --solutionUniqueName <chosen-solution-unique-name> `
-       --component <migrated-agent-bot-id> `
-       --componentType Bot `
-       --AddRequiredComponents
-
-     pac solution delete --solution-name <init-solution-unique-name> --environment <target-environment-id>
-     ```
-
-   Pass `--componentType Bot` by **name** (PAC auto-resolves the component-type id; do not pass a numeric id, which PAC rejects) and pass `--component` as the Bot **ID/GUID** (the bot schema name does not resolve here). `--AddRequiredComponents` brings the agent's dependent bot components into the chosen solution.
-3. **Confirm and record.** Confirm the commands succeeded (and that the migrated agent still appears in `pac copilot list`), then record the chosen destination — default solution or the chosen solution unique name — plus the fact that the init-created solution was deleted, in `MIGRATION-PLAN-<random>.md`.
 
 ## Output Guidance
 
