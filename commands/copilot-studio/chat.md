@@ -44,7 +44,9 @@ the user cloned the agent. Make one attempt; continue even if it cannot be read.
 3. If several are found, ask the user which one (or have them pass a path).
 4. **CLI-agent gate.** Read the chosen agent's `settings.mcs.yml` and check
    `configuration.recognizer.kind`:
-   - `CLIAgentRecognizer` → this is a CLI / agentic-loop agent. Proceed.
+   - `CLIAgentRecognizer` or `CLICopilotRecognizer` → this is a CLI / agentic-loop agent. Proceed.
+     (Both kinds are in use — `CLICopilotRecognizer` is the newer one produced by `pac copilot
+     clone` / migration.)
    - anything else (e.g. `GenerativeAIRecognizer`) → stop and tell the user this skill only chats
      with **CLI-authored** agents, because only they are served by the agenticruntime endpoint this
      command uses. Suggest `/migrate` if they want to convert a classic agent.

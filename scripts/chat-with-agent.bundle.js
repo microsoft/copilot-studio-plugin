@@ -36914,6 +36914,7 @@ var yaml = require_js_yaml();
 var { PublicClientApplication } = require_msal_node();
 var { CopilotStudioClient } = require_src6();
 var { Activity } = require_src5();
+var CLI_RECOGNIZER_KINDS = ["CLIAgentRecognizer", "CLICopilotRecognizer"];
 function log(msg) {
   process.stderr.write(msg + "\n");
 }
@@ -37135,9 +37136,9 @@ function loadAgentConfig(agentDir) {
   }
   const settings = yaml.load(fs.readFileSync(settingsPath, "utf-8")) || {};
   const recognizerKind = settings?.configuration?.recognizer?.kind;
-  if (recognizerKind !== "CLIAgentRecognizer") {
+  if (!CLI_RECOGNIZER_KINDS.includes(recognizerKind)) {
     die(
-      `This agent is not a CLI (agentic-loop) agent. settings.mcs.yml recognizer.kind is '${recognizerKind || "unset"}', expected 'CLIAgentRecognizer'. The chat skill only supports CLI-authored agents.`,
+      `This agent is not a CLI (agentic-loop) agent. settings.mcs.yml recognizer.kind is '${recognizerKind || "unset"}', expected one of ${CLI_RECOGNIZER_KINDS.join(", ")}. The chat skill only supports CLI-authored agents.`,
       { recognizerKind: recognizerKind || null, agentDir }
     );
   }

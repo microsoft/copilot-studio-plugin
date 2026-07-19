@@ -35,6 +35,12 @@ const { PublicClientApplication } = require("@azure/msal-node");
 const { CopilotStudioClient } = require("@microsoft/agents-copilotstudio-client");
 const { Activity } = require("@microsoft/agents-activity");
 
+// Recognizer kinds that indicate a CLI / agentic-loop agent (served by the /3p agenticruntime
+// endpoint). Both are in active use: CLIAgentRecognizer (earlier) and CLICopilotRecognizer
+// (the newer kind produced by pac clone / migration). Anything else (e.g. GenerativeAIRecognizer)
+// is a classic/generative-orchestration agent and is not supported by this skill.
+const CLI_RECOGNIZER_KINDS = ["CLIAgentRecognizer", "CLICopilotRecognizer"];
+
 // ---------------------------------------------------------------------------
 // Output helpers
 // ---------------------------------------------------------------------------
@@ -314,12 +320,12 @@ function loadAgentConfig(agentDir) {
   }
   const settings = yaml.load(fs.readFileSync(settingsPath, "utf-8")) || {};
 
-  // --- CLI-agent gate: only CLIAgentRecognizer agents use the /3p agenticruntime path. ---
+  // --- CLI-agent gate: only CLI-authored agents use the /3p agenticruntime path. ---
   const recognizerKind = settings?.configuration?.recognizer?.kind;
-  if (recognizerKind !== "CLIAgentRecognizer") {
+  if (!CLI_RECOGNIZER_KINDS.includes(recognizerKind)) {
     die(
       `This agent is not a CLI (agentic-loop) agent. settings.mcs.yml recognizer.kind is ` +
-        `'${recognizerKind || "unset"}', expected 'CLIAgentRecognizer'. ` +
+        `'${recognizerKind || "unset"}', expected one of ${CLI_RECOGNIZER_KINDS.join(", ")}. ` +
         `The chat skill only supports CLI-authored agents.`,
       { recognizerKind: recognizerKind || null, agentDir }
     );
