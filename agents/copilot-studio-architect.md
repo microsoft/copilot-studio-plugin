@@ -152,6 +152,36 @@ configuration:
 
 Keep existing model, recognizer, authentication, channels, language, template, `displayName`, and `schemaName` unless the describer report or user explicitly requires a supported change. Supported modern model series include `GPT5Chat`, `GPT55Chat`, `Sonnet46`, and `Opus47`.
 
+## Conversation Starters
+
+Author suggested prompts (surfaced to the end user in the M365 Copilot picker and the agent's chat surface) as a first-class field of `settings.mcs.yml` under `configuration.agentSettings`, alongside `instructions`:
+
+```yaml
+configuration:
+  agentSettings:
+    model:
+      series: <series>
+    instructions:
+      segments:
+        - kind: StaticSegment
+          value: |
+            <instructions>
+    conversationStarters:
+      - title: <short label shown on the suggestion chip>
+        text: <the message that is sent when the user picks it>
+      - title: <label>
+        text: <message>
+```
+
+Rules:
+
+- Author 3-6 starters. Fewer than 3 undersells the agent's capabilities; more than 6 clutters the picker.
+- Each `title` should be 1-4 words, imperative or noun-phrase (for example "Draft Minutes", "Explain refund policy"). Avoid a leading verb + preposition + object that duplicates `text`.
+- Each `text` is the literal prompt that will be sent to the agent as if the user typed it. Use natural language; include a placeholder like `<link>` or `<topic>` where the user is expected to fill in a value.
+- Derive starters from the agent's highest-value user journeys already described in `instructions` and skills. Do not invent scenarios the agent cannot handle.
+- Do not embed starter text inside the `instructions` static segment as a workaround. The dedicated field renders in the Copilot Studio UI, the M365 Copilot picker, and the agent's chat surface; embedding in instructions renders nowhere.
+- Preserve any existing `conversationStarters` block during edits unless the user explicitly asks to replace it.
+
 ## Knowledge YAML
 
 Create knowledge only when the source has a concrete searchable source or local uploaded file.
