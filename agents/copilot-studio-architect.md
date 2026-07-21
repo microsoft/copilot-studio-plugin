@@ -152,6 +152,30 @@ configuration:
 
 Keep existing model, recognizer, authentication, channels, language, template, `displayName`, and `schemaName` unless the describer report or user explicitly requires a supported change. Supported modern model series include `GPT5Chat`, `GPT55Chat`, `Sonnet46`, and `Opus47`.
 
+## Agent Icon
+
+Copilot Studio agents surface an icon in the M365 Copilot picker, the Copilot Studio agent list, and the agent's chat surface. The default icon is a generic placeholder — customer-facing agents should ship with a custom icon.
+
+Author the icon as a PNG file at the **project root**, filename `icon.png`:
+
+```text
+<target-agent>/
+├── settings.mcs.yml
+├── agent.sync.yaml
+├── icon.png            <-- 192x192 PNG, agent icon, applied automatically on push
+├── behaviors/
+├── capabilities/
+└── .mcs/
+```
+
+Rules:
+
+- File name must be exactly `icon.png`, at the project root. Files under `assets/` are ignored by the icon-detection convention.
+- PNG format, 192x192 recommended. Larger sizes are accepted but downscaled.
+- On `pac copilot push`, the file is encoded as `iconBase64` in the compiled bot definition and applied to the agent identity server-side.
+- On `pac copilot pull`, the server serialises the current icon back to `icon.png` at the project root; do not check that file into source control if it is expected to change through the UI.
+- Do not reference the icon in `settings.mcs.yml` — as of the current schema there is no YAML property for it; the on-disk convention is the entire interface.
+
 ## Knowledge YAML
 
 Create knowledge only when the source has a concrete searchable source or local uploaded file.
