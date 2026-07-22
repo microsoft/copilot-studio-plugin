@@ -141,8 +141,12 @@ From the JSON output:
   complete answer). Note any `type: "event"` `turn.complete` as end-of-turn.
 - If `status` is `"error"`, surface the `error` message. For `needsClientId`, run the setup workflow
   (step 4). For a non-CLI `recognizerKind`, stop per the gate (step 3). If the error carries
-  `httpStatus: 404`, the agent is almost certainly **not published** — tell the user to publish it in
-  Copilot Studio (or run `pac copilot publish --bot-id <AgentId>`) and then retry.
+  `httpStatus: 404`, the most likely cause is that the agent is **not published** (a fresh clone stays
+  unpublished until published). Explain this and **offer to publish it for the user**: on their
+  confirmation, run `pac copilot publish --bot-id <AgentId>` (the `AgentId` is in the error payload and
+  in `chat-config.json`), wait for it to finish, then automatically retry the same chat turn. Do not
+  publish without confirmation, and note that 404 can occasionally have other causes (wrong
+  environment/schema) if publishing does not resolve it.
 
 Keep the loop going: after each agent reply, ask the user for their next message and send it with the
 same `--conversation-id`, until the user is done.

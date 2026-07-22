@@ -37342,7 +37342,7 @@ async function preflightRuntime({ directConnectUrl, token, schemaName, agentId }
   const withSnippet = snippet ? `: ${snippet}` : "";
   if (res.status === 404) {
     die(
-      `The agenticruntime has no agent at this endpoint (HTTP 404${withSnippet}). The agent '${schemaName}' is very likely not published. Publish it in Copilot Studio, or run \`pac copilot publish --bot-id ${agentId}\`, then retry.`,
+      `The agenticruntime has no agent at this endpoint (HTTP 404${withSnippet}). The most common cause is that the agent '${schemaName}' has not been published (a fresh clone is unpublished until you publish it). Publish it in Copilot Studio, or run \`pac copilot publish --bot-id ${agentId}\`, then retry.`,
       { httpStatus: 404, schemaName, agentId, endpoint: url }
     );
   }
