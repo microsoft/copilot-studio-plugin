@@ -37162,7 +37162,7 @@ function findAgentDirs(startDir) {
     }
     for (const entry of entries) {
       if (entry.name === "node_modules" || entry.name === ".git") continue;
-      if (entry.name === "agent.mcs.yml" && entry.isFile()) {
+      if (entry.name === "settings.mcs.yml" && entry.isFile() && fs.existsSync(path.join(dir, ".mcs", "conn.json"))) {
         results.push(dir);
       } else if (entry.isDirectory()) {
         search(path.join(dir, entry.name), depth + 1);
@@ -37177,7 +37177,7 @@ function resolveAgentDir(args) {
   const found = findAgentDirs(process.cwd());
   if (found.length === 0) {
     die(
-      "No agent.mcs.yml found in the current directory tree. Use --agent-dir to point at a cloned Copilot Studio agent."
+      "No cloned Copilot Studio agent (settings.mcs.yml + .mcs/conn.json) found in the current directory tree. Use --agent-dir to point at a cloned agent."
     );
   }
   if (found.length > 1) {

@@ -37,8 +37,8 @@ the user cloned the agent. Make one attempt; continue even if it cannot be read.
 ### 3. Locate the agent and confirm it is a CLI agent (blocking)
 
 1. If the user named a path, use it as `--agent-dir`. Otherwise auto-discover candidate agents with
-   `Glob: **/agent.mcs.yml` (a cloned agent workspace contains `agent.mcs.yml`, `settings.mcs.yml`,
-   and `.mcs/conn.json`).
+   `Glob: **/settings.mcs.yml` (a cloned CLI-agent workspace contains `settings.mcs.yml` and
+   `.mcs/conn.json`).
 2. If no agent is found, tell the user this skill needs a **locally-cloned agent** and that they can
    clone one with `pac copilot` (e.g. via `/migrate` or `pac copilot clone`). Stop.
 3. If several are found, ask the user which one (or have them pass a path).
