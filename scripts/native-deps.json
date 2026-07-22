@@ -1,0 +1,9 @@
+{
+  "name": "copilot-studio-native-deps",
+  "private": true,
+  "description": "Native dependencies that cannot be bundled by esbuild. Installed into CLAUDE_PLUGIN_DATA at session start so the chat-with-agent bundle can resolve them at runtime for OS-native encrypted MSAL token storage.",
+  "dependencies": {
+    "@azure/msal-node-extensions": "^1.5.32",
+    "keytar": "7.9.0"
+  }
+}
