@@ -21,8 +21,14 @@
  *   node chat-with-agent.bundle.js --direct-connect-url <url> "hello"      (override URL derivation)
  *   node chat-with-agent.bundle.js --set-client-id <id> [--agent-dir <path>]   (save app id, no chat)
  *   node chat-with-agent.bundle.js --dry-run [--agent-dir <path>]           (resolve plan, no auth/chat)
+ *   node chat-with-agent.bundle.js --pretty "hello"                         (live terminal chat UI)
+ *   node chat-with-agent.bundle.js --raw "hello"                            (full activity dump)
  *
- * Output (stdout): a single JSON object with the full activity payloads and conversation_id.
+ * Output (stdout): by default a distilled JSON summary of the turn — { conversation_id, greeting,
+ *   reasoning[], steps[] (tool/status cues), text (final answer), attachments[] }. Attachments the
+ *   agent produces are materialized to disk (<pluginData>/chat-attachments/<conversationId>/) and
+ *   only their file paths are returned, so large images never bloat the caller's context. Use
+ *   --raw for the full activity payloads, or --pretty for a colorized live terminal experience.
  * Diagnostics (stderr): human-readable progress lines (incl. the device-code prompt).
  * Exit codes: 0 = success, 1 = error.
  */
@@ -35,6 +41,8 @@ const { PublicClientApplication } = require("@azure/msal-node");
 const { CopilotStudioClient } = require("@microsoft/agents-copilotstudio-client");
 const { Activity } = require("@microsoft/agents-activity");
 const { createCachePluginWithFallback } = require("./msal-cache");
+const { summarizeTurn } = require("./response-format");
+const { createLiveRenderer } = require("./terminal-render");
 
 // Recognizer kinds that indicate a CLI / agentic-loop agent (served by the /3p agenticruntime
 // endpoint). Both are in active use: CLIAgentRecognizer (earlier) and CLICopilotRecognizer
@@ -224,6 +232,8 @@ function parseArgs() {
     directConnectUrl: null,
     setClientId: null,
     dryRun: false,
+    raw: false,
+    pretty: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -248,6 +258,12 @@ function parseArgs() {
         break;
       case "--dry-run":
         parsed.dryRun = true;
+        break;
+      case "--raw":
+        parsed.raw = true;
+        break;
+      case "--pretty":
+        parsed.pretty = true;
         break;
       default:
         if (!args[i].startsWith("--")) {
@@ -562,9 +578,12 @@ async function chat({
   token,
   schemaName,
   agentId,
+  onActivity,
 }) {
   const settings = { directConnectUrl, cloud };
   const client = new CopilotStudioClient(settings, token);
+  const isStart = !conversationId;
+  const emit = typeof onActivity === "function" ? onActivity : () => {};
 
   const startActivities = [];
   if (!conversationId) {
@@ -573,7 +592,9 @@ async function chat({
     for await (const activity of client.startConversationStreaming({
       emitStartConversationEvent: true,
     })) {
-      startActivities.push(activityToDict(activity));
+      const dict = activityToDict(activity);
+      startActivities.push(dict);
+      emit(dict, "start");
       if (activity.conversation?.id) conversationId = activity.conversation.id;
     }
     // For the 3p controller the id rides the x-ms-conversationid response header, which the
@@ -594,14 +615,15 @@ async function chat({
 
   const activities = [];
   for await (const activity of client.sendActivityStreaming(message, conversationId)) {
-    activities.push(activityToDict(activity));
+    const dict = activityToDict(activity);
+    activities.push(dict);
+    emit(dict, "turn");
   }
 
   return {
-    status: "ok",
-    utterance,
-    conversation_id: conversationId || client.conversationId || null,
-    start_activities: startActivities,
+    conversationId: conversationId || client.conversationId || null,
+    isStart,
+    startActivities,
     activities,
   };
 }
@@ -709,6 +731,9 @@ async function main() {
   }
 
   try {
+    const renderer = args.pretty ? createLiveRenderer({ out: process.stdout }) : null;
+    if (renderer) renderer.userEcho(args.utterance);
+
     const result = await chat({
       utterance: args.utterance,
       conversationId: args.conversationId,
@@ -717,8 +742,66 @@ async function main() {
       token,
       schemaName: config.schemaName,
       agentId: config.agentId,
+      onActivity: renderer ? (a) => renderer.onActivity(a) : undefined,
     });
-    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+
+    const conversationId = result.conversationId;
+    const attachmentsDir = path.join(
+      resolvePluginDataDir(),
+      "chat-attachments",
+      conversationId || "unknown"
+    );
+    const summary = summarizeTurn({
+      startActivities: result.startActivities,
+      activities: result.activities,
+      attachmentsDir,
+      isStart: result.isStart,
+    });
+
+    if (renderer) {
+      if (result.isStart && summary.greeting) renderer.greeting(summary.greeting);
+      renderer.finishTurn(summary);
+      process.stderr.write(`Conversation id: ${conversationId}\n`);
+      return;
+    }
+
+    if (args.raw) {
+      // Full, unfiltered activity dump for debugging.
+      process.stdout.write(
+        JSON.stringify(
+          {
+            status: "ok",
+            utterance: args.utterance,
+            conversation_id: conversationId,
+            start_activities: result.startActivities,
+            activities: result.activities,
+          },
+          null,
+          2
+        ) + "\n"
+      );
+      return;
+    }
+
+    // Default: distilled, high-signal summary for the coding agent. Large attachments are
+    // materialized to disk (see summary.attachments[].path) rather than inlined as base64.
+    process.stdout.write(
+      JSON.stringify(
+        {
+          status: "ok",
+          utterance: args.utterance,
+          conversation_id: conversationId,
+          greeting: summary.greeting,
+          reasoning: summary.reasoning,
+          steps: summary.steps,
+          text: summary.text,
+          attachments: summary.attachments,
+          activity_count: result.activities.length,
+        },
+        null,
+        2
+      ) + "\n"
+    );
   } catch (e) {
     die(`Unexpected error: ${e.message}`);
   }

@@ -109,8 +109,9 @@ and paste back the **Application (client) ID**.
 
 ### 5. Run a chat turn
 
-Invoke the bundled script. It emits a single JSON object on **stdout** (progress and the device-code
-prompt go to **stderr**).
+Invoke the bundled script. By default it emits a single distilled JSON summary on **stdout**
+(progress and the device-code prompt go to **stderr**). See step 6 for the summary fields and the
+`--raw` / `--pretty` output modes.
 
 - **First turn** (starts a new conversation):
 
@@ -134,11 +135,25 @@ prompt go to **stderr**).
 
 ### 6. Relay the response
 
-From the JSON output:
-- Read `conversation_id` and reuse it for every follow-up turn in this session.
-- Show the agent's reply from `activities` — render the text of the final `type: "message"` activity
-  (the incremental `type: "typing"` activities carry the answer-so-far; the last `message` is the
-  complete answer). Note any `type: "event"` `turn.complete` as end-of-turn.
+By default the script emits a **distilled JSON summary** of the turn (not the raw activity stream).
+Present it to the user like a chat client would:
+
+- `conversation_id` — reuse it for every follow-up turn in this session.
+- `greeting` — the agent's opening line (present only on the first turn); show it once.
+- `text` — the agent's **final answer** as Markdown. This is the main thing to show; render it as
+  Markdown.
+- `reasoning` — an ordered list of the agent's chain-of-thought steps. Surface these as brief,
+  clearly-secondary "thinking" notes (e.g. a collapsible/italic list), distinct from the answer.
+- `steps` — tool/status cues such as `"Running Bash..."`. Show them as lightweight progress/tool
+  indicators, separate from both reasoning and the answer.
+- `attachments` — files the agent produced, already **materialized to disk**. Each has
+  `{ name, contentType, bytes, path }` (or `url` for external links). Give the user the `path`; the
+  base64 is never inlined, so offer to open/preview the file rather than dumping its contents.
+- `activity_count` — raw activity count, for diagnostics only.
+
+Render **messages, reasoning, and tool steps differently** so the user can tell them apart — the
+final `text` is the answer, `reasoning` is the agent's thinking, and `steps` are tool invocations.
+
 - If `status` is `"error"`, surface the `error` message. For `needsClientId`, run the setup workflow
   (step 4). For a non-CLI `recognizerKind`, stop per the gate (step 3). If the error carries
   `httpStatus: 404`, the most likely cause is that the agent is **not published** (a fresh clone stays
@@ -147,6 +162,12 @@ From the JSON output:
   in `chat-config.json`), wait for it to finish, then automatically retry the same chat turn. Do not
   publish without confirmation, and note that 404 can occasionally have other causes (wrong
   environment/schema) if publishing does not resolve it.
+
+**Output modes.** Add `--raw` to get the full, unfiltered activity payloads (start + turn) for
+debugging. Add `--pretty` for a colorized, live terminal chat experience (reasoning in cyan, tool
+cues dimmed, the answer rendered as styled Markdown, attachments listed with their paths) — useful
+when a human runs the script directly in a terminal rather than having the agent relay the JSON.
+
 
 Keep the loop going: after each agent reply, ask the user for their next message and send it with the
 same `--conversation-id`, until the user is done.

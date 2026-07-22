@@ -36971,6 +36971,287 @@ var require_msal_cache = __commonJS({
   }
 });
 
+// src/response-format.js
+var require_response_format = __commonJS({
+  "src/response-format.js"(exports2, module2) {
+    var fs2 = require("fs");
+    var path2 = require("path");
+    var EXT_BY_TYPE = {
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "image/gif": "gif",
+      "image/svg+xml": "svg",
+      "application/pdf": "pdf",
+      "text/csv": "csv",
+      "text/plain": "txt",
+      "text/html": "html",
+      "application/json": "json",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx"
+    };
+    function firstMessageText(activities) {
+      const m = (activities || []).filter((a) => a.type === "message" && a.text).pop();
+      return m ? m.text : null;
+    }
+    function collectReasoning(activities) {
+      const seen = /* @__PURE__ */ new Set();
+      const out = [];
+      for (const a of activities || []) {
+        for (const e of a.entities || []) {
+          if (e.type === "thought" && e.text && e.text.trim() && !seen.has(e.text)) {
+            seen.add(e.text);
+            out.push(e.text.trim());
+          }
+        }
+      }
+      return out;
+    }
+    function collectSteps(activities) {
+      const seen = /* @__PURE__ */ new Set();
+      const out = [];
+      for (const a of activities || []) {
+        const cd = a.channelData || {};
+        const t = (a.text || "").trim();
+        if (cd.streamType === "informative" && t && !seen.has(t)) {
+          seen.add(t);
+          out.push(t);
+        }
+      }
+      return out;
+    }
+    function finalText(activities) {
+      const msg = (activities || []).filter((a) => a.type === "message" && a.text).pop();
+      if (msg) return msg.text;
+      let best = "";
+      for (const a of activities || []) {
+        if (a.text && a.text.length > best.length) best = a.text;
+      }
+      return best || null;
+    }
+    function sanitizeName(name, contentType, index) {
+      let base = (name || "").trim().replace(/[/\\]/g, "_").replace(/[^\w.\- ]/g, "");
+      if (!base) {
+        const ext = EXT_BY_TYPE[contentType] || "bin";
+        base = `attachment-${index + 1}.${ext}`;
+      } else if (!path2.extname(base)) {
+        const ext = EXT_BY_TYPE[contentType];
+        if (ext) base += `.${ext}`;
+      }
+      return base;
+    }
+    function uniquePath(dir, name, used) {
+      let candidate = path2.join(dir, name);
+      if (!used.has(candidate) && !fs2.existsSync(candidate)) {
+        used.add(candidate);
+        return candidate;
+      }
+      const ext = path2.extname(name);
+      const stem = name.slice(0, name.length - ext.length);
+      let i = 1;
+      while (true) {
+        candidate = path2.join(dir, `${stem}-${i}${ext}`);
+        if (!used.has(candidate) && !fs2.existsSync(candidate)) {
+          used.add(candidate);
+          return candidate;
+        }
+        i++;
+      }
+    }
+    function decodeDataUrl(url) {
+      const m = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(url || "");
+      if (!m) return null;
+      const mediaType = m[1] || "application/octet-stream";
+      const isB64 = !!m[2];
+      const data = m[3];
+      const buf = isB64 ? Buffer.from(data, "base64") : Buffer.from(decodeURIComponent(data));
+      return { mediaType, buf };
+    }
+    function materializeAttachments(activities, attachmentsDir) {
+      const out = [];
+      const usedPaths = /* @__PURE__ */ new Set();
+      const dedupe = /* @__PURE__ */ new Set();
+      let index = 0;
+      for (const a of activities || []) {
+        for (const at of a.attachments || []) {
+          const url = at.contentUrl || "";
+          const decoded = url.startsWith("data:") ? decodeDataUrl(url) : null;
+          if (decoded) {
+            const contentType = at.contentType || decoded.mediaType || "application/octet-stream";
+            const name = sanitizeName(at.name, contentType, index);
+            const key = `${name}:${decoded.buf.length}`;
+            index++;
+            if (dedupe.has(key)) continue;
+            dedupe.add(key);
+            fs2.mkdirSync(attachmentsDir, { recursive: true });
+            const outPath = uniquePath(attachmentsDir, name, usedPaths);
+            fs2.writeFileSync(outPath, decoded.buf);
+            out.push({
+              name: path2.basename(outPath),
+              contentType,
+              bytes: decoded.buf.length,
+              path: outPath
+            });
+          } else if (url) {
+            out.push({
+              name: at.name || null,
+              contentType: at.contentType || null,
+              url
+            });
+          }
+          index++;
+        }
+      }
+      return out;
+    }
+    function summarizeTurn2({
+      startActivities = [],
+      activities = [],
+      attachmentsDir,
+      isStart = false
+    }) {
+      const greeting = isStart ? firstMessageText(startActivities) : null;
+      const attachments = attachmentsDir ? materializeAttachments(activities, attachmentsDir) : [];
+      return {
+        greeting,
+        reasoning: collectReasoning(activities),
+        steps: collectSteps(activities),
+        text: finalText(activities),
+        attachments
+      };
+    }
+    module2.exports = {
+      summarizeTurn: summarizeTurn2,
+      // exported for reuse / testing
+      collectReasoning,
+      collectSteps,
+      finalText,
+      materializeAttachments,
+      decodeDataUrl
+    };
+  }
+});
+
+// src/terminal-render.js
+var require_terminal_render = __commonJS({
+  "src/terminal-render.js"(exports2, module2) {
+    var C = {
+      reset: "\x1B[0m",
+      dim: "\x1B[2m",
+      bold: "\x1B[1m",
+      italic: "\x1B[3m",
+      cyan: "\x1B[36m",
+      green: "\x1B[32m",
+      yellow: "\x1B[33m",
+      magenta: "\x1B[35m",
+      gray: "\x1B[90m",
+      reverse: "\x1B[7m"
+    };
+    function supportsColor(stream) {
+      if (process.env.NO_COLOR) return false;
+      if (process.env.FORCE_COLOR) return true;
+      return !!(stream && stream.isTTY);
+    }
+    function paint(color, enabled) {
+      return (s) => enabled ? color + s + C.reset : s;
+    }
+    function renderMarkdown(md, enabled) {
+      const b = paint(C.bold, enabled);
+      const dim = paint(C.dim, enabled);
+      const cyan = paint(C.cyan, enabled);
+      const code = paint(C.green, enabled);
+      const inline = (s) => enabled ? s.replace(/`([^`]+)`/g, (_, x) => C.reverse + " " + x + " " + C.reset) : s;
+      const boldInline = (s) => enabled ? s.replace(/\*\*([^*]+)\*\*/g, (_, x) => C.bold + x + C.reset) : s;
+      const lines = String(md || "").split("\n");
+      const out = [];
+      let inFence = false;
+      for (const raw of lines) {
+        const fence = /^\s*```/.test(raw);
+        if (fence) {
+          inFence = !inFence;
+          const lang = raw.replace(/^\s*```/, "").trim();
+          out.push(dim("\u250C\u2500 " + (inFence ? lang || "code" : "")).trimEnd());
+          continue;
+        }
+        if (inFence) {
+          out.push(dim("\u2502 ") + code(raw));
+          continue;
+        }
+        if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(raw)) {
+          out.push(dim("\u2500".repeat(48)));
+          continue;
+        }
+        let line = raw;
+        const h = /^(#{1,6})\s+(.*)$/.exec(line);
+        if (h) {
+          const text = boldInline(inline(h[2]));
+          out.push(cyan(b(text)));
+          continue;
+        }
+        line = line.replace(/^(\s*)[-*]\s+/, (_, sp) => sp + "\u2022 ");
+        if (/^\s*>\s?/.test(line)) {
+          line = dim("\u2502 ") + line.replace(/^\s*>\s?/, "");
+        }
+        out.push(boldInline(inline(line)));
+      }
+      return out.join("\n");
+    }
+    function humanBytes(n) {
+      if (n == null) return "";
+      if (n < 1024) return n + " B";
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+      return (n / (1024 * 1024)).toFixed(1) + " MB";
+    }
+    function createLiveRenderer2({ out = process.stdout } = {}) {
+      const enabled = supportsColor(out);
+      const dim = paint(C.dim, enabled);
+      const cyan = paint(C.cyan, enabled);
+      const yellow = paint(C.yellow, enabled);
+      const magenta = paint(C.magenta, enabled);
+      const b = paint(C.bold, enabled);
+      const seenThoughts = /* @__PURE__ */ new Set();
+      const seenSteps = /* @__PURE__ */ new Set();
+      const w = (s) => out.write(s + "\n");
+      function onActivity(activity) {
+        const cd = activity.channelData || {};
+        const t = (activity.text || "").trim();
+        if (cd.streamType === "informative" && t && !seenSteps.has(t)) {
+          seenSteps.add(t);
+          w(dim("  \u2699 " + t));
+        }
+        for (const e of activity.entities || []) {
+          if (e.type === "thought" && e.text && e.text.trim() && !seenThoughts.has(e.text)) {
+            seenThoughts.add(e.text);
+            w(cyan("  \u{1F9E0} " + e.text.trim()));
+          }
+        }
+      }
+      function greeting(text) {
+        if (text) w("\n" + magenta(b("agent")) + " " + text + "\n");
+      }
+      function userEcho(text) {
+        w("\n" + yellow(b("you")) + "  " + text);
+      }
+      function finishTurn(summary) {
+        if (summary.text) {
+          w("\n" + magenta(b("agent")));
+          w(renderMarkdown(summary.text, enabled));
+        }
+        if (summary.attachments && summary.attachments.length) {
+          w("\n" + dim("attachments:"));
+          for (const a of summary.attachments) {
+            const meta = [a.contentType, humanBytes(a.bytes)].filter(Boolean).join(", ");
+            w(dim("  \u{1F4CE} ") + (a.path || a.url) + (meta ? dim("  (" + meta + ")") : ""));
+          }
+        }
+        w("");
+      }
+      return { onActivity, finishTurn, greeting, userEcho, enabled };
+    }
+    module2.exports = { createLiveRenderer: createLiveRenderer2, renderMarkdown, supportsColor, humanBytes };
+  }
+});
+
 // src/chat-with-agent.js
 var fs = require("fs");
 var os = require("os");
@@ -36980,6 +37261,8 @@ var { PublicClientApplication } = require_msal_node();
 var { CopilotStudioClient } = require_src6();
 var { Activity } = require_src5();
 var { createCachePluginWithFallback } = require_msal_cache();
+var { summarizeTurn } = require_response_format();
+var { createLiveRenderer } = require_terminal_render();
 var CLI_RECOGNIZER_KINDS = ["CLIAgentRecognizer", "CLICopilotRecognizer"];
 function log(msg) {
   process.stderr.write(msg + "\n");
@@ -37116,7 +37399,9 @@ function parseArgs() {
     cloud: null,
     directConnectUrl: null,
     setClientId: null,
-    dryRun: false
+    dryRun: false,
+    raw: false,
+    pretty: false
   };
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -37140,6 +37425,12 @@ function parseArgs() {
         break;
       case "--dry-run":
         parsed.dryRun = true;
+        break;
+      case "--raw":
+        parsed.raw = true;
+        break;
+      case "--pretty":
+        parsed.pretty = true;
         break;
       default:
         if (!args[i].startsWith("--")) {
@@ -37370,10 +37661,14 @@ async function chat({
   cloud,
   token,
   schemaName,
-  agentId
+  agentId,
+  onActivity
 }) {
   const settings = { directConnectUrl, cloud };
   const client = new CopilotStudioClient(settings, token);
+  const isStart = !conversationId;
+  const emit = typeof onActivity === "function" ? onActivity : () => {
+  };
   const startActivities = [];
   if (!conversationId) {
     await preflightRuntime({ directConnectUrl, token, schemaName, agentId });
@@ -37381,7 +37676,9 @@ async function chat({
     for await (const activity of client.startConversationStreaming({
       emitStartConversationEvent: true
     })) {
-      startActivities.push(activityToDict(activity));
+      const dict = activityToDict(activity);
+      startActivities.push(dict);
+      emit(dict, "start");
       if (activity.conversation?.id) conversationId = activity.conversation.id;
     }
     if (!conversationId && client.conversationId) conversationId = client.conversationId;
@@ -37398,13 +37695,14 @@ async function chat({
   });
   const activities = [];
   for await (const activity of client.sendActivityStreaming(message, conversationId)) {
-    activities.push(activityToDict(activity));
+    const dict = activityToDict(activity);
+    activities.push(dict);
+    emit(dict, "turn");
   }
   return {
-    status: "ok",
-    utterance,
-    conversation_id: conversationId || client.conversationId || null,
-    start_activities: startActivities,
+    conversationId: conversationId || client.conversationId || null,
+    isStart,
+    startActivities,
     activities
   };
 }
@@ -37484,6 +37782,8 @@ async function main() {
     saveClientId({ agentId: config.agentId, tenantId: config.tenantId, cloud, clientId });
   }
   try {
+    const renderer = args.pretty ? createLiveRenderer({ out: process.stdout }) : null;
+    if (renderer) renderer.userEcho(args.utterance);
     const result = await chat({
       utterance: args.utterance,
       conversationId: args.conversationId,
@@ -37491,9 +37791,61 @@ async function main() {
       cloud,
       token,
       schemaName: config.schemaName,
-      agentId: config.agentId
+      agentId: config.agentId,
+      onActivity: renderer ? (a) => renderer.onActivity(a) : void 0
     });
-    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    const conversationId = result.conversationId;
+    const attachmentsDir = path.join(
+      resolvePluginDataDir(),
+      "chat-attachments",
+      conversationId || "unknown"
+    );
+    const summary = summarizeTurn({
+      startActivities: result.startActivities,
+      activities: result.activities,
+      attachmentsDir,
+      isStart: result.isStart
+    });
+    if (renderer) {
+      if (result.isStart && summary.greeting) renderer.greeting(summary.greeting);
+      renderer.finishTurn(summary);
+      process.stderr.write(`Conversation id: ${conversationId}
+`);
+      return;
+    }
+    if (args.raw) {
+      process.stdout.write(
+        JSON.stringify(
+          {
+            status: "ok",
+            utterance: args.utterance,
+            conversation_id: conversationId,
+            start_activities: result.startActivities,
+            activities: result.activities
+          },
+          null,
+          2
+        ) + "\n"
+      );
+      return;
+    }
+    process.stdout.write(
+      JSON.stringify(
+        {
+          status: "ok",
+          utterance: args.utterance,
+          conversation_id: conversationId,
+          greeting: summary.greeting,
+          reasoning: summary.reasoning,
+          steps: summary.steps,
+          text: summary.text,
+          attachments: summary.attachments,
+          activity_count: result.activities.length
+        },
+        null,
+        2
+      ) + "\n"
+    );
   } catch (e) {
     die(`Unexpected error: ${e.message}`);
   }
