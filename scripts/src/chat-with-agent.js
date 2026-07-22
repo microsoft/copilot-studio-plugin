@@ -34,6 +34,7 @@ const yaml = require("js-yaml");
 const { PublicClientApplication } = require("@azure/msal-node");
 const { CopilotStudioClient } = require("@microsoft/agents-copilotstudio-client");
 const { Activity } = require("@microsoft/agents-activity");
+const { createCachePluginWithFallback } = require("./msal-cache");
 
 // Recognizer kinds that indicate a CLI / agentic-loop agent (served by the /3p agenticruntime
 // endpoint). Both are in active use: CLIAgentRecognizer (earlier) and CLICopilotRecognizer
@@ -358,6 +359,12 @@ function tokenCachePath(agentId) {
   return path.join(dir, `${safe}.json`);
 }
 
+// Per-agent slot name for the encrypted OS-keychain token cache.
+function cacheAccountName(agentId) {
+  const safe = (agentId || "default").replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `chat-${safe}`;
+}
+
 // MSAL-node masks a failed /devicecode request (e.g. the app registration does not exist in this
 // tenant, or public-client flows are disabled) as an opaque "post_request_failed: invalid_grant"
 // and invokes the device-code callback with an empty response, so the user never sees the real
@@ -393,20 +400,9 @@ async function diagnoseDeviceCodeFailure({ authority, clientId, scope }) {
   return null;
 }
 
-async function getAccessToken({ tenantId, clientId, scope, cachePath }) {
+async function getAccessToken({ tenantId, clientId, scope, accountName, fallbackCachePath }) {
   const authority = `https://login.microsoftonline.com/${tenantId}`;
-  const cachePlugin = {
-    beforeCacheAccess: async (context) => {
-      if (fs.existsSync(cachePath)) {
-        context.tokenCache.deserialize(fs.readFileSync(cachePath, "utf-8"));
-      }
-    },
-    afterCacheAccess: async (context) => {
-      if (context.cacheHasChanged) {
-        fs.writeFileSync(cachePath, context.tokenCache.serialize());
-      }
-    },
-  };
+  const cachePlugin = await createCachePluginWithFallback(accountName, fallbackCachePath, log);
 
   const app = new PublicClientApplication({
     auth: { clientId, authority },
@@ -593,7 +589,8 @@ async function main() {
     tenantId: config.tenantId,
     clientId,
     scope,
-    cachePath: tokenCachePath(config.agentId),
+    accountName: cacheAccountName(config.agentId),
+    fallbackCachePath: tokenCachePath(config.agentId),
   });
 
   // Auth succeeded, so this client id is valid for the tenant — persist it for future runs.

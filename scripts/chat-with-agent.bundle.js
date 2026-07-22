@@ -1,3 +1,4 @@
+var _d=process.env.CLAUDE_PLUGIN_DATA;if(!_d){try{_d=JSON.parse(require('fs').readFileSync(require('path').join(require('os').homedir(),'.copilot-studio-cli','plugin-paths.json'),'utf8')).pluginData}catch{}}if(_d){var _p=require('path');process.env.NODE_PATH=[_p.join(_d,'node_modules'),process.env.NODE_PATH].filter(Boolean).join(_p.delimiter);require('module')._initPaths()}
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -36906,6 +36907,70 @@ var require_src6 = __commonJS({
   }
 });
 
+// src/msal-cache.js
+var require_msal_cache = __commonJS({
+  "src/msal-cache.js"(exports2, module2) {
+    var fs2 = require("fs");
+    var os2 = require("os");
+    var path2 = require("path");
+    var CACHE_DIR = path2.join(os2.homedir(), ".copilot-studio-cli");
+    var SERVICE_NAME = "copilot-studio-cli";
+    async function createCachePlugin(accountName) {
+      const {
+        PersistenceCreator,
+        PersistenceCachePlugin,
+        DataProtectionScope
+      } = require("@azure/msal-node-extensions");
+      const cachePath = path2.join(CACHE_DIR, `${accountName}.cache.json`);
+      const persistence = await PersistenceCreator.createPersistence({
+        cachePath,
+        dataProtectionScope: DataProtectionScope.CurrentUser,
+        serviceName: SERVICE_NAME,
+        accountName,
+        usePlaintextFileOnLinux: true
+      });
+      return new PersistenceCachePlugin(persistence);
+    }
+    function createPlaintextCachePlugin(cachePath) {
+      try {
+        fs2.mkdirSync(path2.dirname(cachePath), { recursive: true });
+      } catch {
+      }
+      return {
+        beforeCacheAccess: async (context2) => {
+          if (fs2.existsSync(cachePath)) {
+            context2.tokenCache.deserialize(fs2.readFileSync(cachePath, "utf-8"));
+          }
+        },
+        afterCacheAccess: async (context2) => {
+          if (context2.cacheHasChanged) {
+            fs2.writeFileSync(cachePath, context2.tokenCache.serialize());
+          }
+        }
+      };
+    }
+    async function createCachePluginWithFallback2(accountName, fallbackPath, warn) {
+      try {
+        return await createCachePlugin(accountName);
+      } catch (e) {
+        if (typeof warn === "function") {
+          warn(
+            `Encrypted token storage unavailable (@azure/msal-node-extensions could not be loaded: ${e && e.message ? e.message : e}). Falling back to a plaintext token cache. Run a fresh session so the plugin can install its native dependencies, or reinstall the plugin, to enable OS-keychain encryption.`
+          );
+        }
+        return createPlaintextCachePlugin(fallbackPath);
+      }
+    }
+    module2.exports = {
+      createCachePlugin,
+      createPlaintextCachePlugin,
+      createCachePluginWithFallback: createCachePluginWithFallback2,
+      CACHE_DIR,
+      SERVICE_NAME
+    };
+  }
+});
+
 // src/chat-with-agent.js
 var fs = require("fs");
 var os = require("os");
@@ -36914,6 +36979,7 @@ var yaml = require_js_yaml();
 var { PublicClientApplication } = require_msal_node();
 var { CopilotStudioClient } = require_src6();
 var { Activity } = require_src5();
+var { createCachePluginWithFallback } = require_msal_cache();
 var CLI_RECOGNIZER_KINDS = ["CLIAgentRecognizer", "CLICopilotRecognizer"];
 function log(msg) {
   process.stderr.write(msg + "\n");
@@ -37160,6 +37226,10 @@ function tokenCachePath(agentId) {
   const safe = (agentId || "default").replace(/[^a-zA-Z0-9._-]/g, "_");
   return path.join(dir, `${safe}.json`);
 }
+function cacheAccountName(agentId) {
+  const safe = (agentId || "default").replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `chat-${safe}`;
+}
 async function diagnoseDeviceCodeFailure({ authority, clientId, scope }) {
   try {
     const body = new URLSearchParams({ client_id: clientId, scope }).toString();
@@ -37186,20 +37256,9 @@ async function diagnoseDeviceCodeFailure({ authority, clientId, scope }) {
   }
   return null;
 }
-async function getAccessToken({ tenantId, clientId, scope, cachePath }) {
+async function getAccessToken({ tenantId, clientId, scope, accountName, fallbackCachePath }) {
   const authority = `https://login.microsoftonline.com/${tenantId}`;
-  const cachePlugin = {
-    beforeCacheAccess: async (context2) => {
-      if (fs.existsSync(cachePath)) {
-        context2.tokenCache.deserialize(fs.readFileSync(cachePath, "utf-8"));
-      }
-    },
-    afterCacheAccess: async (context2) => {
-      if (context2.cacheHasChanged) {
-        fs.writeFileSync(cachePath, context2.tokenCache.serialize());
-      }
-    }
-  };
+  const cachePlugin = await createCachePluginWithFallback(accountName, fallbackCachePath, log);
   const app = new PublicClientApplication({
     auth: { clientId, authority },
     cache: { cachePlugin }
@@ -37343,7 +37402,8 @@ async function main() {
     tenantId: config.tenantId,
     clientId,
     scope,
-    cachePath: tokenCachePath(config.agentId)
+    accountName: cacheAccountName(config.agentId),
+    fallbackCachePath: tokenCachePath(config.agentId)
   });
   if (args.clientId) {
     saveClientId({ agentId: config.agentId, tenantId: config.tenantId, cloud, clientId });

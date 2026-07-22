@@ -155,6 +155,11 @@ same `--conversation-id`, until the user is done.
 - **What this command does not do.** It does not author, edit, publish, or manage the agent, and it
   does not use Direct Line. It only chats with an already-published CLI agent. Use `/migrate` or the
   manage agent for those tasks.
-- **Auth footprint.** Tokens are cached per-agent under `<pluginData>/token-cache/`; nothing is
-  written into the agent's `.mcs/` folder. The app id, tenant id, and environment id are not secrets
-  (public client, no secret), so they are stored as plain JSON in `<pluginData>/chat-config.json`.
+- **Auth footprint.** Access and refresh tokens are cached **per-agent in OS-native encrypted
+  storage** (macOS Keychain / Windows DPAPI / Linux libsecret) via `@azure/msal-node-extensions`;
+  the on-disk `~/.copilot-studio-cli/chat-<AgentId>.cache.json` holds no readable token. The native
+  dependencies are installed automatically into `<pluginData>` at session start. If they can't be
+  loaded (e.g. a standalone run before provisioning), the script **falls back to a plaintext token
+  cache** under `<pluginData>/token-cache/` and prints a warning. Nothing is written into the
+  agent's `.mcs/` folder. The app id, tenant id, and environment id are not secrets (public client,
+  no secret), so they are stored as plain JSON in `<pluginData>/chat-config.json`.
