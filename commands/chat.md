@@ -140,7 +140,9 @@ From the JSON output:
   (the incremental `type: "typing"` activities carry the answer-so-far; the last `message` is the
   complete answer). Note any `type: "event"` `turn.complete` as end-of-turn.
 - If `status` is `"error"`, surface the `error` message. For `needsClientId`, run the setup workflow
-  (step 4). For a non-CLI `recognizerKind`, stop per the gate (step 3).
+  (step 4). For a non-CLI `recognizerKind`, stop per the gate (step 3). If the error carries
+  `httpStatus: 404`, the agent is almost certainly **not published** — tell the user to publish it in
+  Copilot Studio (or run `pac copilot publish --bot-id <AgentId>`) and then retry.
 
 Keep the loop going: after each agent reply, ask the user for their next message and send it with the
 same `--conversation-id`, until the user is done.
@@ -152,6 +154,11 @@ same `--conversation-id`, until the user is done.
 - **Sub-agents can reuse this exact script.** Any sub-agent can run
   `node "<pluginRoot>/scripts/chat-with-agent.bundle.js" …` with the same flags; there is one
   implementation and one saved app registration.
+- **The agent must be published.** Chat runs against the *published* CLI agent. Before streaming a
+  turn the script does a one-shot preflight against the agenticruntime `/conversations` endpoint: a
+  `404` (unpublished agent) fails fast with a clear "publish the agent" message instead of hanging.
+  This works around microsoft/Agents-for-js#1198, where the streaming client retries a non-2xx
+  forever and never returns.
 - **What this command does not do.** It does not author, edit, publish, or manage the agent, and it
   does not use Direct Line. It only chats with an already-published CLI agent. Use `/migrate` or the
   manage agent for those tasks.

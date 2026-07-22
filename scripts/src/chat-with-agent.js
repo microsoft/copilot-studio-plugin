@@ -461,12 +461,113 @@ function activityToDict(activity) {
   return JSON.parse(JSON.stringify(activity));
 }
 
-async function chat({ utterance, conversationId, directConnectUrl, cloud, token }) {
+// Derive the conversations endpoint from the base directConnectUrl by inserting
+// `/conversations` before the query string (e.g. `.../bots/<schema>?api-version=1`
+// -> `.../bots/<schema>/conversations?api-version=1`).
+function conversationsUrl(directConnectUrl) {
+  const u = new URL(directConnectUrl);
+  u.pathname = u.pathname.replace(/\/+$/, "") + "/conversations";
+  return u.toString();
+}
+
+// One-shot preflight so we fail fast with a clear error instead of hanging.
+//
+// The SDK streams over `eventsource-client`, which auto-reconnects on connection
+// errors and treats a non-2xx (e.g. a 404 for an unpublished agent) as a droppable
+// connection -> it retries forever and the `for await` loop never yields or ends,
+// hanging the process. See microsoft/Agents-for-js#1198. Until that is fixed we do a
+// single plain POST to the conversations endpoint and inspect the HTTP status before
+// handing off to the streaming client. Note: a 200 here starts a throwaway conversation
+// server-side (POST is not read-only), which is acceptable for a test/dev tool.
+async function preflightRuntime({ directConnectUrl, token, schemaName, agentId }) {
+  const url = conversationsUrl(directConnectUrl);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25000);
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify({ emitStartConversationEvent: true }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    clearTimeout(timer);
+    if (e.name === "AbortError") {
+      die(
+        `Timed out after 25s waiting for the agenticruntime to respond at ${url}. ` +
+          `The endpoint may be unreachable or the environment is misconfigured.`,
+        { endpoint: url }
+      );
+    }
+    // Any other network error: don't block — let the SDK attempt and surface its own error.
+    log(`Preflight request failed (${e.message}); continuing to the streaming client.`);
+    return;
+  }
+  clearTimeout(timer);
+
+  if (res.ok) {
+    // Healthy. Abandon this preflight stream; the SDK starts the real conversation.
+    try {
+      await res.body?.cancel();
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+
+  const bodyText = await res.text().catch(() => "");
+  const snippet = bodyText.trim().split("\n")[0].slice(0, 200);
+  const withSnippet = snippet ? `: ${snippet}` : "";
+
+  if (res.status === 404) {
+    die(
+      `The agenticruntime has no agent at this endpoint (HTTP 404${withSnippet}). ` +
+        `The agent '${schemaName}' is very likely not published. Publish it in Copilot ` +
+        `Studio, or run \`pac copilot publish --bot-id ${agentId}\`, then retry.`,
+      { httpStatus: 404, schemaName, agentId, endpoint: url }
+    );
+  }
+  if (res.status === 401) {
+    die(
+      `The runtime rejected the access token (HTTP 401${withSnippet}). The token is ` +
+        `invalid or expired for this endpoint — re-run to sign in again.`,
+      { httpStatus: 401, endpoint: url }
+    );
+  }
+  if (res.status === 403) {
+    die(
+      `The runtime denied access (HTTP 403${withSnippet}). The signed-in user or app ` +
+        `may lack permission to this agent or environment.`,
+      { httpStatus: 403, endpoint: url }
+    );
+  }
+  die(
+    `The agenticruntime returned HTTP ${res.status}${withSnippet} when starting a ` +
+      `conversation at ${url}.`,
+    { httpStatus: res.status, endpoint: url }
+  );
+}
+
+async function chat({
+  utterance,
+  conversationId,
+  directConnectUrl,
+  cloud,
+  token,
+  schemaName,
+  agentId,
+}) {
   const settings = { directConnectUrl, cloud };
   const client = new CopilotStudioClient(settings, token);
 
   const startActivities = [];
   if (!conversationId) {
+    await preflightRuntime({ directConnectUrl, token, schemaName, agentId });
     log("Starting new conversation...");
     for await (const activity of client.startConversationStreaming({
       emitStartConversationEvent: true,
@@ -613,6 +714,8 @@ async function main() {
       directConnectUrl,
       cloud,
       token,
+      schemaName: config.schemaName,
+      agentId: config.agentId,
     });
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   } catch (e) {
