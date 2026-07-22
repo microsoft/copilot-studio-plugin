@@ -358,7 +358,43 @@ function tokenCachePath(agentId) {
   return path.join(dir, `${safe}.json`);
 }
 
+// MSAL-node masks a failed /devicecode request (e.g. the app registration does not exist in this
+// tenant, or public-client flows are disabled) as an opaque "post_request_failed: invalid_grant"
+// and invokes the device-code callback with an empty response, so the user never sees the real
+// reason. When that happens we ask the token endpoint directly to surface the actual AADSTS error.
+async function diagnoseDeviceCodeFailure({ authority, clientId, scope }) {
+  try {
+    const body = new URLSearchParams({ client_id: clientId, scope }).toString();
+    const res = await fetch(`${authority}/oauth2/v2.0/devicecode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    const data = await res.json().catch(() => null);
+    if (data && data.error) {
+      const desc = String(data.error_description || "").split("\n")[0].trim();
+      const codes = data.error_codes || [];
+      let hint = "";
+      if (data.error === "unauthorized_client" || codes.includes(700016)) {
+        hint =
+          " The app registration (--client-id) must exist in this agent's tenant and allow public" +
+          " client (device code) flows. Create or consent the app in the correct tenant, or pass a" +
+          " different --client-id.";
+      } else if (data.error === "invalid_client" || codes.includes(7000218)) {
+        hint = " Enable 'Allow public client flows' on the app registration.";
+      } else if (codes.includes(70011) || /scope/i.test(desc)) {
+        hint = " The requested scope may be invalid for this app registration.";
+      }
+      return `Device-code sign-in could not start: ${data.error}${desc ? ` — ${desc}` : ""}.${hint}`;
+    }
+  } catch {
+    // best effort; fall back to the generic error
+  }
+  return null;
+}
+
 async function getAccessToken({ tenantId, clientId, scope, cachePath }) {
+  const authority = `https://login.microsoftonline.com/${tenantId}`;
   const cachePlugin = {
     beforeCacheAccess: async (context) => {
       if (fs.existsSync(cachePath)) {
@@ -373,10 +409,7 @@ async function getAccessToken({ tenantId, clientId, scope, cachePath }) {
   };
 
   const app = new PublicClientApplication({
-    auth: {
-      clientId,
-      authority: `https://login.microsoftonline.com/${tenantId}`,
-    },
+    auth: { clientId, authority },
     cache: { cachePlugin },
   });
 
@@ -391,13 +424,29 @@ async function getAccessToken({ tenantId, clientId, scope, cachePath }) {
     }
   }
 
-  const result = await app.acquireTokenByDeviceCode({
-    scopes: [scope],
-    deviceCodeCallback: (response) => {
-      log(response.message);
-    },
-  });
-  return result.accessToken;
+  let sawPrompt = false;
+  try {
+    const result = await app.acquireTokenByDeviceCode({
+      scopes: [scope],
+      deviceCodeCallback: (response) => {
+        if (response && response.message) {
+          sawPrompt = true;
+          log(response.message);
+        }
+      },
+    });
+    return result.accessToken;
+  } catch (e) {
+    // If we never received a real device-code prompt, the /devicecode call itself failed; surface
+    // the underlying AADSTS error instead of MSAL's misleading post_request_failed/invalid_grant.
+    if (!sawPrompt) {
+      const detail = await diagnoseDeviceCodeFailure({ authority, clientId, scope });
+      if (detail) die(detail);
+    }
+    const code = e && (e.errorCode || e.name);
+    const msg = e && (e.errorMessage || e.message);
+    die(`Authentication failed${code ? `: ${code}` : ""}${msg ? ` (${msg})` : ""}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -491,29 +540,14 @@ async function main() {
     agentId: config.agentId,
     tenantId: config.tenantId,
   });
-  if (!clientId) {
-    die(
-      "No app registration configured. Provide --client-id <appId> (an Entra public-client app " +
-        "with the CopilotStudio.Copilots.Invoke delegated permission). It will be saved for this " +
-        "agent. See /copilot-studio:chat for the setup steps.",
-      { needsClientId: true, tenantId: config.tenantId, agentId: config.agentId }
-    );
-  }
-
-  // Persist the client id whenever it was supplied explicitly, so future runs reuse it.
-  if (args.clientId) {
-    saveClientId({ agentId: config.agentId, tenantId: config.tenantId, cloud, clientId });
-  }
 
   const directConnectUrl =
     args.directConnectUrl ||
     buildDirectConnectUrl(config.environmentId, config.schemaName, cloud);
-  log(`Cloud: ${cloud}`);
-  log(`Direct connect URL: ${directConnectUrl}`);
-
   const scope = scopeForCloud(cloud);
 
-  // --dry-run: report the resolved connection plan without authenticating or chatting.
+  // --dry-run: report the resolved connection plan without authenticating or chatting. This must
+  // work before app-registration setup, so a missing client id is reported (not fatal) here.
   if (args.dryRun) {
     process.stdout.write(
       JSON.stringify(
@@ -529,7 +563,8 @@ async function main() {
           cloud,
           directConnectUrl,
           scope,
-          appClientId: clientId,
+          appClientId: clientId || null,
+          needsClientId: !clientId,
         },
         null,
         2
@@ -538,6 +573,21 @@ async function main() {
     return;
   }
 
+  if (!clientId) {
+    die(
+      "No app registration configured. Provide --client-id <appId> (an Entra public-client app " +
+        "with the CopilotStudio.Copilots.Invoke delegated permission). It will be saved for this " +
+        "agent. See /mcs-assistant:chat for the setup steps.",
+      { needsClientId: true, tenantId: config.tenantId, agentId: config.agentId }
+    );
+  }
+
+  // Persist the client id only after it successfully authenticates (below), so a wrong/typo'd
+  // id is never saved or reused. --dry-run and failed sign-ins therefore never write config.
+
+  log(`Cloud: ${cloud}`);
+  log(`Direct connect URL: ${directConnectUrl}`);
+
   log("Authenticating (device code)...");
   const token = await getAccessToken({
     tenantId: config.tenantId,
@@ -545,6 +595,11 @@ async function main() {
     scope,
     cachePath: tokenCachePath(config.agentId),
   });
+
+  // Auth succeeded, so this client id is valid for the tenant — persist it for future runs.
+  if (args.clientId) {
+    saveClientId({ agentId: config.agentId, tenantId: config.tenantId, cloud, clientId });
+  }
 
   try {
     const result = await chat({

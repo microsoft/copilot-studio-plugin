@@ -37160,7 +37160,34 @@ function tokenCachePath(agentId) {
   const safe = (agentId || "default").replace(/[^a-zA-Z0-9._-]/g, "_");
   return path.join(dir, `${safe}.json`);
 }
+async function diagnoseDeviceCodeFailure({ authority, clientId, scope }) {
+  try {
+    const body = new URLSearchParams({ client_id: clientId, scope }).toString();
+    const res = await fetch(`${authority}/oauth2/v2.0/devicecode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body
+    });
+    const data = await res.json().catch(() => null);
+    if (data && data.error) {
+      const desc = String(data.error_description || "").split("\n")[0].trim();
+      const codes = data.error_codes || [];
+      let hint = "";
+      if (data.error === "unauthorized_client" || codes.includes(700016)) {
+        hint = " The app registration (--client-id) must exist in this agent's tenant and allow public client (device code) flows. Create or consent the app in the correct tenant, or pass a different --client-id.";
+      } else if (data.error === "invalid_client" || codes.includes(7000218)) {
+        hint = " Enable 'Allow public client flows' on the app registration.";
+      } else if (codes.includes(70011) || /scope/i.test(desc)) {
+        hint = " The requested scope may be invalid for this app registration.";
+      }
+      return `Device-code sign-in could not start: ${data.error}${desc ? ` \u2014 ${desc}` : ""}.${hint}`;
+    }
+  } catch {
+  }
+  return null;
+}
 async function getAccessToken({ tenantId, clientId, scope, cachePath }) {
+  const authority = `https://login.microsoftonline.com/${tenantId}`;
   const cachePlugin = {
     beforeCacheAccess: async (context2) => {
       if (fs.existsSync(cachePath)) {
@@ -37174,28 +37201,39 @@ async function getAccessToken({ tenantId, clientId, scope, cachePath }) {
     }
   };
   const app = new PublicClientApplication({
-    auth: {
-      clientId,
-      authority: `https://login.microsoftonline.com/${tenantId}`
-    },
+    auth: { clientId, authority },
     cache: { cachePlugin }
   });
   const accounts = await app.getTokenCache().getAllAccounts();
   if (accounts.length > 0) {
     try {
-      const result2 = await app.acquireTokenSilent({ scopes: [scope], account: accounts[0] });
+      const result = await app.acquireTokenSilent({ scopes: [scope], account: accounts[0] });
       log("Using cached token.");
-      return result2.accessToken;
+      return result.accessToken;
     } catch {
     }
   }
-  const result = await app.acquireTokenByDeviceCode({
-    scopes: [scope],
-    deviceCodeCallback: (response) => {
-      log(response.message);
+  let sawPrompt = false;
+  try {
+    const result = await app.acquireTokenByDeviceCode({
+      scopes: [scope],
+      deviceCodeCallback: (response) => {
+        if (response && response.message) {
+          sawPrompt = true;
+          log(response.message);
+        }
+      }
+    });
+    return result.accessToken;
+  } catch (e) {
+    if (!sawPrompt) {
+      const detail = await diagnoseDeviceCodeFailure({ authority, clientId, scope });
+      if (detail) die(detail);
     }
-  });
-  return result.accessToken;
+    const code = e && (e.errorCode || e.name);
+    const msg = e && (e.errorMessage || e.message);
+    die(`Authentication failed${code ? `: ${code}` : ""}${msg ? ` (${msg})` : ""}`);
+  }
 }
 function activityToDict(activity) {
   return JSON.parse(JSON.stringify(activity));
@@ -37266,18 +37304,7 @@ async function main() {
     agentId: config.agentId,
     tenantId: config.tenantId
   });
-  if (!clientId) {
-    die(
-      "No app registration configured. Provide --client-id <appId> (an Entra public-client app with the CopilotStudio.Copilots.Invoke delegated permission). It will be saved for this agent. See /copilot-studio:chat for the setup steps.",
-      { needsClientId: true, tenantId: config.tenantId, agentId: config.agentId }
-    );
-  }
-  if (args.clientId) {
-    saveClientId({ agentId: config.agentId, tenantId: config.tenantId, cloud, clientId });
-  }
   const directConnectUrl = args.directConnectUrl || buildDirectConnectUrl(config.environmentId, config.schemaName, cloud);
-  log(`Cloud: ${cloud}`);
-  log(`Direct connect URL: ${directConnectUrl}`);
   const scope = scopeForCloud(cloud);
   if (args.dryRun) {
     process.stdout.write(
@@ -37294,7 +37321,8 @@ async function main() {
           cloud,
           directConnectUrl,
           scope,
-          appClientId: clientId
+          appClientId: clientId || null,
+          needsClientId: !clientId
         },
         null,
         2
@@ -37302,6 +37330,14 @@ async function main() {
     );
     return;
   }
+  if (!clientId) {
+    die(
+      "No app registration configured. Provide --client-id <appId> (an Entra public-client app with the CopilotStudio.Copilots.Invoke delegated permission). It will be saved for this agent. See /mcs-assistant:chat for the setup steps.",
+      { needsClientId: true, tenantId: config.tenantId, agentId: config.agentId }
+    );
+  }
+  log(`Cloud: ${cloud}`);
+  log(`Direct connect URL: ${directConnectUrl}`);
   log("Authenticating (device code)...");
   const token = await getAccessToken({
     tenantId: config.tenantId,
@@ -37309,6 +37345,9 @@ async function main() {
     scope,
     cachePath: tokenCachePath(config.agentId)
   });
+  if (args.clientId) {
+    saveClientId({ agentId: config.agentId, tenantId: config.tenantId, cloud, clientId });
+  }
   try {
     const result = await chat({
       utterance: args.utterance,

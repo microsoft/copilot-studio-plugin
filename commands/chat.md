@@ -97,16 +97,15 @@ and paste back the **Application (client) ID**.
    - If **Power Platform API** is not listed, an admin must add it to the tenant first — see the
      Power Platform API authentication docs (register the `Power Platform API` service principal).
    - *(Optional)* Click **Grant admin consent** to avoid a per-user consent prompt.
-6. Ask the user to paste the **Application (client) ID**.
-7. Persist it for this agent without chatting by running:
+6. Ask the user to paste the **Application (client) ID**. You pass it on the first chat turn (next
+   step) via `--client-id`; the script saves it automatically **after** the first successful
+   sign-in — keyed by the agent's `AgentId`, plus a per-tenant default so other agents in the same
+   tenant reuse it. Nothing is written if sign-in fails, so a wrong id is never persisted. The config
+   file (`<pluginData>/chat-config.json`) lives in the plugin **data** directory (separate from the
+   plugin code), so it survives `/plugin update`.
 
-   ```bash
-   node "<pluginRoot>/scripts/chat-with-agent.bundle.js" --agent-dir "<agentDir>" --set-client-id "<appId>"
-   ```
-
-   The script stores it in `<pluginData>/chat-config.json`, keyed by the agent's `AgentId`, plus a
-   per-tenant default so other agents in the same tenant reuse it automatically. This file lives in
-   the plugin **data** directory (separate from the plugin code), so it survives `/plugin update`.
+   *(Advanced: `--set-client-id "<appId>"` pre-saves the id without a sign-in — only use this if you
+   are certain the app registration is correct, since it is not validated.)*
 
 ### 5. Run a chat turn
 
