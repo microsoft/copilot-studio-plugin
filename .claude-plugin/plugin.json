@@ -1,7 +1,7 @@
 {
   "name": "mcs-assistant",
-  "version": "1.0.2",
-  "description": "Microsoft Copilot Studio new orchestration YAML authoring toolkit. Create, edit, validate, and test Copilot Studio agents using YAML files.",
+  "version": "1.1.0",
+  "description": "Microsoft Copilot Studio agent authoring and lifecycle toolkit. Create, migrate, describe, edit, and validate agents in YAML, manage their ALM (clone, pull, push, publish), and use skills to add knowledge sources and connections, delete agents, and scaffold new skills.",
   "author": {
     "name": "Microsoft Copilot Studio CAT Team"
   }

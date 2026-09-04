@@ -1,25 +1,29 @@
-# TODO: The maintainer of this repo has not yet edited this file
-
-**REPO OWNER**: Do you want Customer Service & Support (CSS) support for this product/project?
-
-- **No CSS support:** Fill out this template with information about how to file issues and get help.
-- **Yes CSS support:** Fill out an intake form at [aka.ms/onboardsupport](https://aka.ms/onboardsupport). CSS will work with/help you to determine next steps.
-- **Not sure?** Fill out an intake as though the answer were "Yes". CSS will help you decide.
-
-*Then remove this first heading from this SUPPORT.MD file before publishing your repo.*
-
 # Support
 
-## How to file issues and get help  
+## How to file issues and get help
 
-This project uses GitHub Issues to track bugs and feature requests. Please search the existing 
-issues before filing new issues to avoid duplicates.  For new issues, file your bug or 
-feature request as a new Issue.
+This project uses **GitHub Issues** to track bugs and feature requests. Please search the
+[existing issues](https://github.com/microsoft/copilot-studio-plugin/issues) before filing a new one to avoid
+duplicates. For a new problem, [open an issue](https://github.com/microsoft/copilot-studio-plugin/issues/new)
+and include:
 
-For help and questions about using this project, please **REPO MAINTAINER: INSERT INSTRUCTIONS HERE 
-FOR HOW TO ENGAGE REPO OWNERS OR COMMUNITY FOR HELP. COULD BE A STACK OVERFLOW TAG OR OTHER
-CHANNEL. WHERE WILL YOU HELP PEOPLE?**.
+- what you were doing (the skill or command you invoked and its arguments),
+- the installed `pac` version (`pac help`) and OS,
+- the full error output, and
+- the relevant agent YAML (redact any secrets, connection ids, or tenant/environment identifiers).
 
-## Microsoft Support Policy  
+For questions and discussion about using the plugin, use the repository's
+[GitHub Issues](https://github.com/microsoft/copilot-studio-plugin/issues) with the `question` label.
 
-Support for this **PROJECT or PRODUCT** is limited to the resources listed above.
+## Underlying platform support
+
+This plugin authors and manages Microsoft Copilot Studio agents through the Power Platform CLI (`pac`). The
+underlying Microsoft products (Copilot Studio, Power Platform, Dataverse) are fully supported through their own
+official channels:
+
+- [Power Platform CLI documentation](https://learn.microsoft.com/en-us/power-platform/developer/cli/introduction)
+- [Copilot Studio documentation](https://learn.microsoft.com/en-us/microsoft-copilot-studio/)
+
+## Microsoft Support Policy
+
+Support for this plugin is provided through the GitHub Issues channel listed above.
