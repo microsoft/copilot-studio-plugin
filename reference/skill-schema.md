@@ -74,7 +74,7 @@ content: |
 mcs.metadata:
   componentName: pdf-redline
   description: Redlines a PDF contract and produces a summary of changes.
-  schemaName: crbab_guitarcoach_dcF_b3.skill.pdf-redline_Kq2
+  schemaName: crbab_guitarcoach_dcF_b3.skill.pdfredline_Kq2
   bundle: crbab_guitarcoach_dcF_b3.file.pdfredlinezip_9Xa2L
   manifestSchemaName: crbab_guitarcoach_dcF_b3.file.skillmd_bT4nQ
 kind: InlineAgentSkill
@@ -149,6 +149,9 @@ segment, so keep it filesystem- and Dataverse-safe:
   with `skill-`.
 - Cap the result at 60 characters. This is a readability cap, **not** the schema limit — see below.
 
+Dots and dashes survive here on purpose — they read well as a display name — so the schema segment is
+derived separately (see below) rather than reusing the folder name as-is.
+
 ## Schema names
 
 Every component schema name has the shape:
@@ -159,12 +162,28 @@ Every component schema name has the shape:
 
 | Component | `<infix>` | `<segment>` | `<token>` |
 |---|---|---|---|
-| Skill anchor | `skill` | the `behaviors/` folder name | 3 chars |
+| Skill anchor | `skill` | the `behaviors/` folder name with every non-alphanumeric removed (`my.cool-skill` → `mycoolskill`), falling back to `skill` when that empties it | 3 chars |
 | Manifest, bundle, payload file | `file` | the file name, lowercased, non-alphanumerics removed (`SKILL.md` → `skillmd`, `redline.py` → `redlinepy`) | 5 chars |
 
 `<agentSchemaName>` is read from the workspace `settings.mcs.yml` (e.g. `crbab_guitarcoach_dcF_b3`).
 `<token>` is a random base62 string; its length is cosmetic parity with portal output — only validity
 and uniqueness matter.
+
+Both segments are reduced to alphanumerics because a `.` in a segment would silently add a fourth
+schema-name level, and the extension mints its own segments the same way
+(`SkillLayout.MintBundleSchemaName` keeps only ASCII letters and digits).
+
+### Reading the agent schema name
+
+`settings.mcs.yml` is scraped, not fully parsed, so resolve the `schemaName:` value the way a YAML
+parser would before using it as a prefix:
+
+- Honour double and single quoting, and unescape the contents. `schemaName: "crbab_x"` is the prefix
+  `crbab_x`, never `"crbab_x"` — pasting the quotes through produces an invalid schema name *and*
+  invalid YAML in the anchor.
+- Drop a trailing `#` comment on an unquoted value.
+- Require the result to match `^[A-Za-z][A-Za-z0-9_]*$`. Anything else is not a usable Dataverse
+  prefix; treat it as "no prefix" and fall back to a bare skill rather than emitting it verbatim.
 
 ### 100-character schema-name budget
 
@@ -185,8 +204,11 @@ The 60-character folder cap is not sufficient on its own: a 40-character agent s
 
 - Never overwrite an existing `behaviors/<folder>/` without explicit confirmation (`--force`).
 - Regenerate companions; never copy a `.mcs.yml` from the skill source.
-- Gallery sidecars (`metadata.json`, `metadata.yaml`, `metadata.yml`, `README.md`) and any `.zip` are
-  excluded from the payload by default.
+- Gallery sidecars (`metadata.json`, `metadata.yaml`, `metadata.yml`, `README.md`) are excluded from
+  the payload by default, matched **case-insensitively** and only at the skill root.
+- Payload archives are copied verbatim like any other file. The one exception is a root-level
+  `<folder>.zip`, which would collide with the bundle archive the extension mints for the skill:
+  skip it and say so, rather than dropping it silently.
 - The manifest must land as exactly `SKILL.md`. If the source has several root manifests differing
   only by casing, keep one and report the one skipped.
 

@@ -74,8 +74,9 @@ about paths on the **gallery** branch until it is time to pick a destination (st
 2. Validate it exists and is a single `SKILL.md` (Markdown) or a `.zip`. If it is neither, tell the
    user what is accepted and stop.
 3. Confirm the resolved absolute path. For a `SKILL.md`, its containing folder is the `--src` for
-   import (step 5). For a `.zip`, extract it to a folder first so `--src` points at the extracted
-   `SKILL.md` and any payload files.
+   import (step 5). For a `.zip`, you cannot extract it yourself - the only shell command available
+   here is the `add-skill.js` script. Ask the user to extract it and give you the path to the
+   extracted folder (the one holding `SKILL.md`), then use that as `--src`.
 
 ## 4. Select from the gallery
 
@@ -124,9 +125,10 @@ payload file — so the on-disk layout matches a Copilot Studio portal import. T
 shapes; `reference/skill-schema.md` documents them.
 
 Every component's schema name is prefixed with the agent `schemaName` read from the workspace
-`settings.mcs.yml`. If that prefix cannot be determined - or you pass `--no-sidecars` - the import
-falls back to a **bare `behaviors/<name>/` folder** and the extension synthesizes the companions on
-the next workspace read / sync (a `warning` explains which happened). If the agent `schemaName` is so
+`settings.mcs.yml`. If that value is missing, or is not a usable Dataverse prefix - or you pass
+`--no-sidecars` - the import falls back to a **bare `behaviors/<name>/` folder** and the extension
+synthesizes the companions on the next workspace read / sync. A `warning` explains the fallback
+except when you asked for it with `--no-sidecars`. If the agent `schemaName` is so
 long that it leaves no room for a component name under the 100-character Dataverse limit, the import
 fails before writing anything - relay that error and suggest a shorter agent schema name.
 
@@ -140,8 +142,12 @@ node "<scriptPath>" import --src "<skill-folder>" --workspace "<cloned-agent-fol
 - `--workspace` is the cloned agent root. `--name` overrides the `behaviors/` folder name (defaults to
   the source folder name, sanitized). `--force` overwrites an existing `behaviors/<name>/`.
 - `--no-sidecars` skips companion generation and writes a bare skill (the pre-existing behavior).
-- Gallery sidecars (`metadata.json`, `README.md`) are excluded by default; pass `--include-sidecars`
-  to keep them. Any `.mcs.yml` files already in `--src` are ignored and regenerated.
+- Gallery sidecars (`metadata.json`, `metadata.yaml`, `metadata.yml`, `README.md`) are excluded by
+  default, matched case-insensitively at the skill root; pass `--include-sidecars` to keep them. Any
+  `.mcs.yml` files already in `--src` are ignored and regenerated.
+- Archives inside the payload (e.g. `assets/templates.zip`) are copied like any other file. A
+  root-level `<name>.zip` is skipped, because it would collide with the bundle archive the extension
+  mints for the skill; the import reports that in `warnings`.
 
 The result JSON is `{ ok, folder, workspace, behaviorsDir, manifest, files, companions, schemaPrefix, warnings, next }`.
 `companions` lists the `.mcs.yml` files written (empty when bare) and `schemaPrefix` is the agent
@@ -149,7 +155,8 @@ schema used. Relay any `warnings` (e.g. the target does not look like a cloned C
 schema prefix could not be read) - the files are still written, but a non-agent workspace will not
 pick the skill up.
 
-For a `.zip` upload, unzip it to a folder first (so `--src` points at the extracted `SKILL.md` + files).
+For a `.zip` upload, `--src` must point at the folder the **user** extracted it to (see step 3), so
+that it holds the `SKILL.md` plus any payload files.
 
 ## 6. Report
 

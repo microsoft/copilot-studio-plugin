@@ -57,7 +57,12 @@ const API_BASE = `https://api.github.com/repos/${REPO}`;
 const PAGES_BASE = 'https://microsoft.github.io/cat-agent-skills';
 
 // Sidecar files live next to the payload but are never part of the skill itself.
-const SIDECARS = new Set(['metadata.json', 'metadata.yaml', 'metadata.yml', 'README.md']);
+// Matched case-insensitively: the gallery and local uploads spell these both ways.
+const SIDECARS = new Set(['metadata.json', 'metadata.yaml', 'metadata.yml', 'readme.md']);
+
+function isSidecarLeaf(leaf) {
+  return SIDECARS.has(String(leaf || '').toLowerCase());
+}
 // Scaffolding folders in the gallery that are not real submissions.
 const TEMPLATES = new Set(['_template', '_template-automation']);
 
@@ -95,9 +100,15 @@ function ghHeaders() {
   return headers;
 }
 
+function httpError(url, res) {
+  const err = new Error(`GET ${url} -> ${res.status} ${res.statusText}`);
+  err.status = res.status;
+  return err;
+}
+
 async function fetchText(url, headers) {
   const res = await fetch(url, headers ? { headers } : undefined);
-  if (!res.ok) throw new Error(`GET ${url} -> ${res.status} ${res.statusText}`);
+  if (!res.ok) throw httpError(url, res);
   return res.text();
 }
 
@@ -107,7 +118,7 @@ async function fetchJson(url, headers) {
 
 async function fetchBuffer(url) {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`GET ${url} -> ${res.status} ${res.statusText}`);
+  if (!res.ok) throw httpError(url, res);
   return Buffer.from(await res.arrayBuffer());
 }
 
@@ -154,7 +165,7 @@ function isSkillFile(rel) {
 
 // Files that make up the downloadable skill (everything except sidecars).
 function payloadFiles(files) {
-  return files.filter((f) => !SIDECARS.has(topName(f)));
+  return files.filter((f) => !isSidecarLeaf(topName(f)));
 }
 
 function classify(files) {
@@ -174,8 +185,18 @@ function classify(files) {
 }
 
 async function readMetadata(slug) {
+  let text;
   try {
-    return JSON.parse(await fetchText(`${RAW_BASE}/submissions/${slug}/metadata.json`));
+    text = await fetchText(`${RAW_BASE}/submissions/${slug}/metadata.json`);
+  } catch (e) {
+    // A missing metadata.json simply means "not a listable skill". Any other
+    // failure (rate limit, outage) must surface instead of silently shrinking
+    // the gallery listing to whatever happened to succeed.
+    if (e && e.status === 404) return null;
+    throw e;
+  }
+  try {
+    return JSON.parse(text);
   } catch {
     return null;
   }
@@ -229,7 +250,15 @@ async function downloadSkill(slug, dest) {
     throw new Error(`"${slug}" is a ${info.type} entry, not an unpacked Agent Skill; cannot add it to a Copilot Studio agent.`);
   }
 
-  const skillDir = path.join(dest, slug);
+  const skillDir = path.resolve(dest, slug);
+  const destRoot = path.resolve(dest);
+  if (skillDir !== destRoot && !skillDir.startsWith(destRoot + path.sep)) {
+    throw new Error(`Refusing to download "${slug}": it does not resolve to a folder inside ${destRoot}.`);
+  }
+  // A download reflects the gallery as it is now, so clear any earlier copy first:
+  // otherwise files deleted upstream (or left behind by a half-finished run) linger
+  // and get imported as if they were still part of the skill.
+  fs.rmSync(skillDir, { recursive: true, force: true });
   fs.mkdirSync(skillDir, { recursive: true });
 
   const saved = [];
@@ -357,16 +386,52 @@ function fitSchemaSegment(segment, { prefix, infix, tokenLen, label, warnings })
   return cut;
 }
 
+// A Dataverse schema name is a publisher prefix plus an alphanumeric/underscore
+// name. Anything else (quotes left in, a stray comment, a sentence) cannot anchor
+// a component name, so we treat it as "no prefix" rather than emit it verbatim.
+const SCHEMA_PREFIX_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+// Resolve a single-line YAML scalar the way a parser would: honour quoting, and
+// drop a trailing `#` comment on plain scalars. Used for the values this script
+// scrapes out of settings.mcs.yml and SKILL.md frontmatter without a full parse.
+function plainYamlValue(rawValue) {
+  const v = String(rawValue == null ? '' : rawValue).trim();
+  if (v[0] === '"') {
+    const m = v.match(/^"((?:[^"\\]|\\.)*)"/);
+    return m ? m[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') : '';
+  }
+  if (v[0] === "'") {
+    const m = v.match(/^'((?:[^']|'')*)'/);
+    return m ? m[1].replace(/''/g, "'") : '';
+  }
+  const comment = v.match(/(?:^|\s)#/);
+  return (comment ? v.slice(0, comment.index) : v).trim();
+}
+
+// The extension mints component segments from ASCII letters and digits only
+// (SkillLayout.MintBundleSchemaName), so the folder name has to be reduced the
+// same way. Without this, a folder like "foo.bar" would smuggle an extra dot into
+// `<prefix>.skill.<segment>` and produce a four-segment schema name.
+function skillSchemaSegment(folder) {
+  const seg = String(folder || '').replace(/[^A-Za-z0-9]+/g, '');
+  return seg.length === 0 ? 'skill' : seg;
+}
+
 // The agent schemaName is the prefix every component hangs off; read it from the
-// workspace settings file. Returns null when it cannot be determined.
+// workspace settings file. Returns null when it cannot be determined, or when the
+// value is not a usable Dataverse prefix — a prefix we cannot trust would produce
+// component names Dataverse rejects.
 function readAgentSchemaPrefix(wsDir) {
+  let raw;
   try {
-    const raw = fs.readFileSync(path.join(wsDir, SETTINGS_FILE), 'utf8');
-    const m = raw.match(/^\uFEFF?schemaName:[ \t]*(\S+)[ \t]*$/m);
-    return m ? m[1] : null;
+    raw = fs.readFileSync(path.join(wsDir, SETTINGS_FILE), 'utf8');
   } catch {
     return null;
   }
+  const m = raw.replace(/^\uFEFF/, '').match(/^schemaName:[ \t]*(.*)$/m);
+  if (!m) return null;
+  const value = plainYamlValue(m[1]);
+  return SCHEMA_PREFIX_RE.test(value) ? value : null;
 }
 
 // Pull the `description` from the SKILL.md YAML frontmatter (single-line scalar).
@@ -383,13 +448,7 @@ function readManifestDescription(manifestAbs) {
   if (!fm) return '';
   const m = fm[1].match(/^description:[ \t]*(.*)$/m);
   if (!m) return '';
-  let val = m[1].trim();
-  if (val.length >= 2 && val[0] === '"' && val.endsWith('"')) {
-    val = val.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-  } else if (val.length >= 2 && val[0] === "'" && val.endsWith("'")) {
-    val = val.slice(1, -1).replace(/''/g, "'");
-  }
-  return val;
+  return plainYamlValue(m[1]);
 }
 
 // Plain scalars a YAML 1.1 parser (what the Copilot Studio tooling reads these
@@ -440,7 +499,7 @@ function writeMcsCompanions({ behaviorsDir, folder, prefix, description, payload
 
   const anchorLines = ['mcs.metadata:', `  componentName: ${yamlScalar(folder)}`];
   if (description) anchorLines.push(`  description: ${yamlScalar(description)}`);
-  const skillSeg = fitSchemaSegment(folder, {
+  const skillSeg = fitSchemaSegment(skillSchemaSegment(folder), {
     prefix, infix: 'skill', tokenLen: 3, label: `the skill anchor "${folder}"`, warnings,
   });
   anchorLines.push(`  schemaName: ${prefix}.skill.${skillSeg}_${schemaToken(3)}`);
@@ -534,11 +593,18 @@ function importSkill({ src, workspace, name, force, includeSidecars, noSidecars 
   }
 
   const written = [];
+  const skippedBundleZips = [];
   let extraManifestSkipped = false;
   for (const rel of allFiles) {
     const leaf = rel.split('/').pop();
-    if (!includeSidecars && rel.indexOf('/') < 0 && SIDECARS.has(leaf)) continue;
-    if (leaf.toLowerCase().endsWith('.zip')) continue;
+    if (!includeSidecars && rel.indexOf('/') < 0 && isSidecarLeaf(leaf)) continue;
+    // The extension mints this skill's bundle as "<folder>.zip", so a root-level
+    // source file with that exact name would collide with it. Every other archive
+    // is ordinary payload and is copied verbatim.
+    if (rel.indexOf('/') < 0 && leaf.toLowerCase() === `${folder.toLowerCase()}.zip`) {
+      skippedBundleZips.push(rel);
+      continue;
+    }
     // MCS companions are (re)generated below, never copied from the source.
     if (leaf.toLowerCase().endsWith(MCS_SIDECAR_SUFFIX)) continue;
     // The manifest must land as exactly SKILL.md; skip any duplicate-cased root manifest.
@@ -555,6 +621,9 @@ function importSkill({ src, workspace, name, force, includeSidecars, noSidecars 
   if (extraManifestSkipped) {
     warnings.push(`Multiple root manifest files found; kept "${manifestRel}" as ${MANIFEST_NAME} and skipped the other.`);
   }
+  for (const rel of skippedBundleZips) {
+    warnings.push(`Skipped "${rel}": it collides with the bundle archive the extension mints for "${folder}". Rename it (or move it into a subfolder) to ship it as payload.`);
+  }
 
   // Emit portal-style .mcs.yml companions so the on-disk layout matches a Copilot
   // Studio portal import. Requires the agent schema prefix from settings.mcs.yml;
@@ -563,7 +632,7 @@ function importSkill({ src, workspace, name, force, includeSidecars, noSidecars 
   let companions = [];
   if (!noSidecars) {
     if (!schemaPrefix) {
-      warnings.push(`Could not read the agent schemaName from ${SETTINGS_FILE}; wrote a bare ${BEHAVIORS_DIR}/ skill without .mcs.yml companions (the extension will synthesize them on pull).`);
+      warnings.push(`Could not read a usable agent schemaName from ${SETTINGS_FILE}; wrote a bare ${BEHAVIORS_DIR}/ skill without .mcs.yml companions (the extension will synthesize them on pull).`);
     } else {
       const prefixLen = `${BEHAVIORS_DIR}/${folder}/`.length;
       const payloadRel = written
@@ -608,15 +677,16 @@ function fitCell(text, width, align) {
   return align === 'right' ? pad + s : s + pad;
 }
 
-function renderPrettyList(skills, { width = PRETTY_WIDTH } = {}) {
+function renderPrettyList(skills, { width = PRETTY_WIDTH, all = false } = {}) {
   const term = Math.max(72, Math.min(width, 200));
   const wNum = Math.max(2, String(skills.length).length);
   const wBundle = 1;
   const wName = 28;
   // Slugs are the exact key used for `download --slug`, so never truncate them:
-  // size the column to the longest slug (bounded) and let Description flex.
+  // size the column to the longest slug and let Description flex (down to its
+  // floor, after which the table simply renders wider than the nominal width).
   const maxSlug = skills.reduce((m, s) => Math.max(m, String(s.slug || '').length), 0);
-  const wSlug = Math.min(42, Math.max(8, maxSlug));
+  const wSlug = Math.max(8, maxSlug);
   // Each column renders as "│ <cell> " (1 border + 2 spaces = 3 chars) and the
   // row ends with a trailing "│": 5 columns => 5*3 + 1 = 16 chars of chrome.
   const chrome = 5 * 3 + 1;
@@ -645,7 +715,7 @@ function renderPrettyList(skills, { width = PRETTY_WIDTH } = {}) {
   });
   out.push(rule('└', '┴', '┘'));
 
-  const heading = `Cat Agent Skills  ${skills.length} skills for Copilot Studio`;
+  const heading = `Cat Agent Skills  ${skills.length} skills${all ? '' : ' for Copilot Studio'}`;
   const legend = '◆ = bundle (ships scripts / references / assets) · others are a single SKILL.md';
 
   return `\n${heading}\n\n${out.join('\n')}\n\n${legend}`;
@@ -678,7 +748,7 @@ async function main() {
   if (cmd === 'list') {
     const skills = await listSkills({ all: !!args.all });
     if (args.pretty) {
-      process.stdout.write(renderPrettyList(skills) + '\n');
+      process.stdout.write(renderPrettyList(skills, { all: !!args.all }) + '\n');
       return;
     }
     process.stdout.write(JSON.stringify({ ok: true, count: skills.length, skills }, null, 2) + '\n');
@@ -725,6 +795,10 @@ if (require.main === module) {
 
 module.exports = {
   SCHEMA_NAME_MAX,
+  downloadSkill,
   importSkill,
+  listSkills,
+  readAgentSchemaPrefix,
+  renderPrettyList,
   yamlScalar,
 };
