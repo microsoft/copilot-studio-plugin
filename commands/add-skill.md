@@ -13,11 +13,12 @@ source `github.com/microsoft/cat-agent-skills`) and downloaded locally.
 
 **Flow:** first *acquire* the skill (validate a local file, or download a gallery skill into a local
 folder), then optionally *import* it into a cloned Copilot Studio agent workspace under
-`behaviors/<name>/`. By default the import also writes the **portal-style `.mcs.yml` companions** (an
-anchor `skill.mcs.yml` plus per-file sidecars for bundle skills) so the on-disk layout matches a
-Copilot Studio portal import. Import only materializes files on disk; **publishing to the cloud is
-done from the VS Code Copilot Studio extension** (Agent Changes view / sync push) afterward - this
-command never pushes.
+`behaviors/<name>/`. Import is supported only for **CLI-agent workspaces** whose root
+`settings.mcs.yml` has a versioned `template: cliagent-...` value. By default the import also writes
+the **portal-style `.mcs.yml` companions** (an anchor `skill.mcs.yml` plus per-file sidecars for
+bundle skills) so the on-disk layout matches a Copilot Studio portal import. Import only
+materializes files on disk; **publishing to the cloud is done from the VS Code Copilot Studio
+extension** (Agent Changes view / sync push) afterward - this command never pushes.
 
 Initial request: $ARGUMENTS
 
@@ -114,9 +115,16 @@ about paths on the **gallery** branch until it is time to pick a destination (st
 
 ## 5. Import into a cloned agent workspace (optional)
 
-Offer to import the acquired skill into a **cloned Copilot Studio agent workspace** (a folder that
-contains `settings.mcs.yml` + `agent.sync.yaml`, produced by the extension's Clone Agent command). If
-the user does not have one yet, tell them to clone/attach an agent first, and stop after acquiring.
+Offer to import the acquired skill into a **cloned Copilot Studio CLI-agent workspace** (a folder
+that contains `settings.mcs.yml` + `agent.sync.yaml`, produced by the extension's Clone Agent
+command). If the user does not have one yet, tell them to clone/attach a CLI agent first, and stop
+after acquiring.
+
+Before writing anything, the importer reads the root `settings.mcs.yml` and requires a root-level,
+single-line `template:` value beginning `cliagent-` (for example,
+`template: cliagent-1.0.0`; plain and quoted values are accepted). If the file is missing, the key is
+missing, or the value is not a CLI-agent template, import stops with an unsupported-workspace error.
+Relay that error and do not create or replace any `behaviors/<name>/` folder.
 
 Import writes the skill under `behaviors/<name>/`: the manifest as `SKILL.md` and every other payload
 file (e.g. `scripts/`) copied verbatim. By default it then also emits the **portal-style `.mcs.yml`
@@ -152,9 +160,9 @@ node "<scriptPath>" import --src "<skill-folder>" --workspace "<cloned-agent-fol
 
 The result JSON is `{ ok, folder, workspace, behaviorsDir, manifest, files, companions, schemaPrefix, warnings, next }`.
 `companions` lists the `.mcs.yml` files written (empty when bare) and `schemaPrefix` is the agent
-schema used. Relay any `warnings` (e.g. the target does not look like a cloned CLI agent, or the
-schema prefix could not be read) - the files are still written, but a non-agent workspace will not
-pick the skill up.
+schema used. Relay any `warnings` (for example, that the workspace layout marker or schema prefix
+could not be read). An unsupported non-CLI workspace is an error, not a warning, and receives no
+files.
 
 For a `.zip` upload, `--src` must point at the folder the **user** extracted it to (see step 3), so
 that it holds the `SKILL.md` plus any payload files.
@@ -176,6 +184,8 @@ Tell the user, concisely:
 
 - The script prints `{ "ok": false, "error": "..." }` and exits non-zero on failure. Surface the
   `error` message.
+- An unsupported-workspace error means the selected folder is not a CLI agent with a root
+  `template: cliagent-<version>` value in `settings.mcs.yml`. Stop; do not retry with `--force`.
 - A GitHub tree "truncated" error, rate-limit, or network failure from `list`/`download` is
   transient - report it and offer to retry. Setting `GITHUB_TOKEN` raises the API limit for the one
   tree call, but is not normally required.

@@ -25,7 +25,12 @@ after(() => {
 
 // Build a throwaway cloned-agent workspace plus a source skill folder, so each
 // test exercises the real importSkill path end to end.
-function makeFixture({ schemaName, settingsLine, payload = {} }) {
+function makeFixture({
+  schemaName,
+  settingsLine,
+  templateLine = "template: cliagent-1.0.0",
+  payload = {},
+}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
   fixtureRoots.push(root);
   const workspace = path.join(root, "agent");
@@ -35,7 +40,12 @@ function makeFixture({ schemaName, settingsLine, payload = {} }) {
   fs.writeFileSync(path.join(workspace, "agent.sync.yaml"), "kind: CLICopilotRecognizer\n");
   fs.writeFileSync(
     path.join(workspace, "settings.mcs.yml"),
-    `${settingsLine || `schemaName: ${schemaName}`}\nkind: CLICopilotRecognizer\n`
+    [
+      settingsLine || `schemaName: ${schemaName}`,
+      "kind: CLICopilotRecognizer",
+      ...(templateLine === null ? [] : [templateLine]),
+      "",
+    ].join("\n")
   );
   fs.writeFileSync(
     path.join(src, "SKILL.md"),
@@ -194,6 +204,62 @@ test("explains the accepted syntax when a multiline schemaName falls back to a b
     result.warnings.some((w) => /single-line.*schemaName.*plain or quoted/i.test(w)),
     `expected a syntax-specific warning, got: ${JSON.stringify(result.warnings)}`
   );
+});
+
+// --- Supported workspace ----------------------------------------------------
+
+test("rejects a workspace whose settings have no CLI-agent template", () => {
+  const { workspace, src } = makeFixture({
+    schemaName: "crbab_demo_dcF_b3",
+    templateLine: null,
+  });
+
+  assert.throws(
+    () => importSkill({ src, workspace, name: "demo" }),
+    /selected agent workspace is not supported.*template: cliagent-<version>/i
+  );
+  assert.ok(!fs.existsSync(path.join(workspace, "behaviors")));
+});
+
+test("rejects a workspace whose settings use a non-CLI template", () => {
+  const { workspace, src } = makeFixture({
+    schemaName: "crbab_demo_dcF_b3",
+    templateLine: "template: default-2.1.0",
+  });
+  const existingDir = path.join(workspace, "behaviors", "demo");
+  const sentinel = path.join(existingDir, "keep.txt");
+  fs.mkdirSync(existingDir, { recursive: true });
+  fs.writeFileSync(sentinel, "existing skill");
+
+  assert.throws(
+    () => importSkill({ src, workspace, name: "demo", force: true }),
+    /selected agent workspace is not supported.*default-2\.1\.0/i
+  );
+  assert.equal(fs.readFileSync(sentinel, "utf8"), "existing skill");
+  assert.ok(!fs.existsSync(path.join(existingDir, "SKILL.md")));
+});
+
+test("rejects a workspace with no settings file", () => {
+  const { workspace, src } = makeFixture({ schemaName: "crbab_demo_dcF_b3" });
+  fs.rmSync(path.join(workspace, "settings.mcs.yml"));
+
+  assert.throws(
+    () => importSkill({ src, workspace, name: "demo" }),
+    /selected agent workspace is not supported.*settings\.mcs\.yml/i
+  );
+  assert.ok(!fs.existsSync(path.join(workspace, "behaviors")));
+});
+
+test("accepts a quoted CLI-agent template with an inline comment", () => {
+  const { workspace, src } = makeFixture({
+    schemaName: "crbab_demo_dcF_b3",
+    templateLine: 'template: "cliagent-2.3.4" # generated template',
+  });
+
+  const result = importSkill({ src, workspace, name: "demo" });
+
+  assert.equal(result.folder, "demo");
+  assert.ok(fs.existsSync(path.join(workspace, "behaviors", "demo", "SKILL.md")));
 });
 
 // --- Schema name shape ------------------------------------------------------

@@ -1,14 +1,27 @@
 # Agent Skill Schema (authoritative)
 
 **Single source of truth** for how agent skills are represented in a modern Copilot Studio
-**agentic-loop** agent (`behaviors/`). The `/add-skill` command, the `scripts/add-skill.js` importer,
-and the `copilot-studio-architect` agent all consult this file — edit the schema **here only** so the
-three never drift.
+**CLI agentic-loop** agent (`behaviors/`). The `/add-skill` command, the `scripts/add-skill.js`
+importer, and the `copilot-studio-architect` agent all consult this file — edit the schema **here
+only** so the three never drift.
 
 The shapes below match what the platform produces when a skill is added in the browser and cloned
 locally with `pac copilot`.
 
 ---
+
+## Supported workspace
+
+The upload importer supports only cloned **CLI-agent workspaces**. Before materializing or replacing
+any `behaviors/<folder>/` content, it reads the root `settings.mcs.yml` and requires a root-level,
+single-line `template:` scalar beginning `cliagent-`, case-insensitively (for example,
+`template: cliagent-1.0.0`). Plain, single-quoted, and double-quoted values are accepted, including a
+trailing comment.
+
+If the settings file or template key is absent, unreadable, malformed, or names a non-CLI template,
+the import stops with an unsupported-workspace error and leaves the workspace unchanged.
+`agent.sync.yaml` remains the expected cloned-workspace layout marker, but it is not used as the
+CLI-agent identity signal.
 
 ## Two variants
 
@@ -110,7 +123,8 @@ mcs.metadata:
 When the agent `schemaName` cannot be read from `settings.mcs.yml`, write the payload files only
 (no anchor, no sidecars) and warn. The VS Code Copilot Studio extension synthesizes the companions on
 the next workspace read / sync. A bare skill is only recognized inside a **code-first (CLI) agent**
-workspace — one carrying `agent.sync.yaml` and a `settings.mcs.yml` that names a CLI recognizer.
+workspace — one whose `settings.mcs.yml` has a versioned `cliagent-` template and that normally
+carries `agent.sync.yaml`.
 
 ## YAML-safe scalar encoding
 

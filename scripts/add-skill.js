@@ -24,8 +24,9 @@
  *   import --src <dir> --workspace <agentDir> [--name <folder>] [--force]
  *          [--include-sidecars] [--no-sidecars] [--json]
  *     Materialize a downloaded skill folder into a cloned Copilot Studio agent
- *     workspace as a skill under <agentDir>/behaviors/<folder>/. The manifest is
- *     written as SKILL.md and every other payload file is copied verbatim
+ *     CLI-agent workspace as a skill under <agentDir>/behaviors/<folder>/. The
+ *     workspace settings must have a root template value beginning `cliagent-`.
+ *     The manifest is written as SKILL.md and every other payload file is copied verbatim
  *     (preserving scripts/ etc.). By default this also emits the portal-style
  *     .mcs.yml companions so the on-disk layout matches a Copilot Studio portal
  *     import: an anchor skill.mcs.yml (the InlineAgentSkill identity) plus one
@@ -75,6 +76,7 @@ const BEHAVIORS_DIR = 'behaviors';
 // skill folders are only synthesized in that layout (AgentClassifier.WorkspaceLayoutMarkerFileName).
 const LAYOUT_MARKER = 'agent.sync.yaml';
 const SETTINGS_FILE = 'settings.mcs.yml';
+const CLI_AGENT_TEMPLATE_PREFIX = 'cliagent-';
 // Portal-style companions the extension normally synthesizes on pull; import can
 // emit them directly so the on-disk layout matches a Copilot Studio portal import.
 // The per-skill "anchor" carries the InlineAgentSkill identity; each bundle
@@ -476,6 +478,31 @@ function readAgentSchemaPrefix(wsDir) {
   return SCHEMA_PREFIX_RE.test(value) ? value : null;
 }
 
+function assertCliAgentWorkspace(wsDir) {
+  let raw;
+  try {
+    raw = fs.readFileSync(path.join(wsDir, SETTINGS_FILE), 'utf8');
+  } catch {
+    throw new Error(
+      `The selected agent workspace is not supported. /add-skill only supports CLI agents; expected a root ` +
+      `"template: cliagent-<version>" value in ${SETTINGS_FILE}.`
+    );
+  }
+
+  const match = raw.replace(/^\uFEFF/, '').match(/^template:[ \t]*(.*)$/m);
+  const template = match ? plainYamlValue(match[1]) : '';
+  if (template.toLowerCase().startsWith(CLI_AGENT_TEMPLATE_PREFIX) &&
+      template.length > CLI_AGENT_TEMPLATE_PREFIX.length) {
+    return;
+  }
+
+  const found = template ? ` Found "template: ${template}".` : '';
+  throw new Error(
+    `The selected agent workspace is not supported. /add-skill only supports CLI agents; expected a root ` +
+    `"template: cliagent-<version>" value in ${SETTINGS_FILE}.${found}`
+  );
+}
+
 // Pull the `description` from the SKILL.md YAML frontmatter (single-line scalar).
 // Returns '' when there is no frontmatter or no description key.
 function readManifestDescription(manifestAbs) {
@@ -602,23 +629,13 @@ function importSkill({ src, workspace, name, force, includeSidecars, noSidecars 
     throw new Error(`No ${MANIFEST_NAME} found at the top of ${srcDir}; this folder is not an importable skill.`);
   }
 
-  // Non-fatal environment checks — surface them so the user knows why a synced
-  // skill might not appear if the target is not a cloned CLI agent.
+  // InlineAgentSkill workspace projection only exists for CLI agents. Fail before
+  // computing or replacing the destination so an unsupported workspace is untouched.
+  assertCliAgentWorkspace(wsDir);
+
   const warnings = [];
-  if (!fs.existsSync(path.join(wsDir, SETTINGS_FILE))) {
-    warnings.push(`Workspace has no ${SETTINGS_FILE}; it does not look like a cloned agent. Clone/attach an agent here first, or the skill will not be picked up.`);
-  }
   if (!fs.existsSync(path.join(wsDir, LAYOUT_MARKER))) {
     warnings.push(`Workspace has no ${LAYOUT_MARKER} layout marker; bare ${BEHAVIORS_DIR}/ skills are only synthesized in code-first (CLI) agent workspaces.`);
-  } else {
-    try {
-      const settings = fs.readFileSync(path.join(wsDir, SETTINGS_FILE), 'utf8');
-      if (!/CLICopilotRecognizer|cliagent/i.test(settings)) {
-        warnings.push(`${SETTINGS_FILE} does not look like a code-first (CLI) agent; InlineAgentSkill is only supported on Copilot Studio CLI agents.`);
-      }
-    } catch {
-      /* best-effort */
-    }
   }
 
   const folder = sanitizeFolderName(name || path.basename(srcDir));
