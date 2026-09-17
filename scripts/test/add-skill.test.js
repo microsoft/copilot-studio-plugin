@@ -180,6 +180,11 @@ test("rejects an agent schemaName that is not a usable Dataverse prefix", () => 
   assert.equal(readAgentSchemaPrefix(workspace), null);
 });
 
+test("rejects a quoted agent schemaName followed by trailing non-comment text", () => {
+  const { workspace } = makeFixture({ settingsLine: 'schemaName: "crbab_demo_dcF_b3" unexpected' });
+  assert.equal(readAgentSchemaPrefix(workspace), null);
+});
+
 test("emits a valid anchor schemaName when settings quotes the agent schemaName", () => {
   const { workspace, src } = makeFixture({ settingsLine: 'schemaName: "crbab_demo_dcF_b3"' });
   const result = importSkill({ src, workspace, name: "demo" });
@@ -260,6 +265,50 @@ test("accepts a quoted CLI-agent template with an inline comment", () => {
 
   assert.equal(result.folder, "demo");
   assert.ok(fs.existsSync(path.join(workspace, "behaviors", "demo", "SKILL.md")));
+});
+
+test("rejects a quoted CLI-agent template followed by trailing non-comment text", () => {
+  const { workspace, src } = makeFixture({
+    schemaName: "crbab_demo_dcF_b3",
+    templateLine: 'template: "cliagent-1.0.0" unexpected',
+  });
+
+  assert.throws(
+    () => importSkill({ src, workspace, name: "demo" }),
+    /selected agent workspace is not supported.*template: cliagent-<version>/i
+  );
+  assert.ok(!fs.existsSync(path.join(workspace, "behaviors")));
+});
+
+test("keeps the previous skill intact when a forced re-import fails midway", () => {
+  const { workspace, src } = makeFixture({ schemaName: "crbab_demo_dcF_b3" });
+
+  // A first import establishes a good skill on disk.
+  importSkill({ src, workspace, name: "demo" });
+  const manifest = path.join(workspace, "behaviors", "demo", "SKILL.md");
+  const original = fs.readFileSync(manifest, "utf8");
+
+  // A different source would replace it, but the copy fails partway through.
+  fs.writeFileSync(
+    path.join(src, "SKILL.md"),
+    "---\nname: demo\ndescription: Rewritten.\n---\nNew body.\n"
+  );
+  const realCopy = fs.copyFileSync;
+  fs.copyFileSync = () => {
+    throw new Error("simulated disk failure");
+  };
+  try {
+    assert.throws(
+      () => importSkill({ src, workspace, name: "demo", force: true }),
+      /simulated disk failure/
+    );
+  } finally {
+    fs.copyFileSync = realCopy;
+  }
+
+  // The old skill survived untouched and no staging folder was left behind.
+  assert.equal(fs.readFileSync(manifest, "utf8"), original);
+  assert.deepEqual(fs.readdirSync(path.join(workspace, "behaviors")), ["demo"]);
 });
 
 // --- Schema name shape ------------------------------------------------------

@@ -438,15 +438,23 @@ const SCHEMA_PREFIX_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 // Resolve a single-line YAML scalar the way a parser would: honour quoting, and
 // drop a trailing `#` comment on plain scalars. Used for the values this script
 // scrapes out of settings.mcs.yml and SKILL.md frontmatter without a full parse.
+// Only whitespace and an optional `#` comment may legally follow a closing quote.
+// Any other trailing text is malformed YAML that a real parser would reject, so a
+// lenient "accept the valid-looking prefix" would let junk like `"crbab_x" oops`
+// pass validation. Refusing it keeps the malformed-workspace / no-write guarantee.
+const YAML_QUOTE_TAIL = /^\s*(#.*)?$/;
+
 function plainYamlValue(rawValue) {
   const v = String(rawValue == null ? '' : rawValue).trim();
   if (v[0] === '"') {
-    const m = v.match(/^"((?:[^"\\]|\\.)*)"/);
-    return m ? m[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\') : '';
+    const m = v.match(/^"((?:[^"\\]|\\.)*)"([\s\S]*)$/);
+    if (!m || !YAML_QUOTE_TAIL.test(m[2])) return '';
+    return m[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
   }
   if (v[0] === "'") {
-    const m = v.match(/^'((?:[^']|'')*)'/);
-    return m ? m[1].replace(/''/g, "'") : '';
+    const m = v.match(/^'((?:[^']|'')*)'([\s\S]*)$/);
+    if (!m || !YAML_QUOTE_TAIL.test(m[2])) return '';
+    return m[1].replace(/''/g, "'");
   }
   const comment = v.match(/(?:^|\s)#/);
   return (comment ? v.slice(0, comment.index) : v).trim();
@@ -647,64 +655,84 @@ function importSkill({ src, workspace, name, force, includeSidecars, noSidecars 
   const schemaPrefix = noSidecars ? null : readAgentSchemaPrefix(wsDir);
   if (schemaPrefix) assertSchemaBudget(schemaPrefix);
 
-  if (fs.existsSync(behaviorsDir)) {
-    if (!force) {
-      throw new Error(`${BEHAVIORS_DIR}/${folder} already exists in the workspace. Pass --force to overwrite, or choose another --name.`);
-    }
-    fs.rmSync(behaviorsDir, { recursive: true, force: true });
+  const behaviorsParent = path.dirname(behaviorsDir);
+
+  // Refuse to clobber an existing skill unless asked. The replacement itself is
+  // deferred to an atomic promote at the very end, so a mid-write failure can
+  // never delete or half-overwrite the skill that is already there.
+  if (fs.existsSync(behaviorsDir) && !force) {
+    throw new Error(`${BEHAVIORS_DIR}/${folder} already exists in the workspace. Pass --force to overwrite, or choose another --name.`);
   }
+
+  // Materialize everything into a staging folder beside the destination (same
+  // filesystem, so the promote is a rename), and swap it in only after every
+  // copy and companion write has succeeded. Any earlier failure leaves the
+  // previous skill untouched and removes only the staging folder.
+  fs.mkdirSync(behaviorsParent, { recursive: true });
+  const stagingRoot = fs.mkdtempSync(path.join(behaviorsParent, `.${folder}.add-skill-`));
+  const stageDir = path.join(stagingRoot, folder);
+  fs.mkdirSync(stageDir, { recursive: true });
 
   const written = [];
   const skippedBundleZips = [];
   let extraManifestSkipped = false;
-  for (const rel of allFiles) {
-    const leaf = rel.split('/').pop();
-    if (!includeSidecars && rel.indexOf('/') < 0 && isSidecarLeaf(leaf)) continue;
-    // The extension mints this skill's bundle as "<folder>.zip", so a root-level
-    // source file with that exact name would collide with it. Every other archive
-    // is ordinary payload and is copied verbatim.
-    if (rel.indexOf('/') < 0 && leaf.toLowerCase() === `${folder.toLowerCase()}.zip`) {
-      skippedBundleZips.push(rel);
-      continue;
-    }
-    // MCS companions are (re)generated below, never copied from the source.
-    if (leaf.toLowerCase().endsWith(MCS_SIDECAR_SUFFIX)) continue;
-    // The manifest must land as exactly SKILL.md; skip any duplicate-cased root manifest.
-    let destRel = rel;
-    if (isManifestLeaf(rel)) {
-      if (rel === manifestRel) destRel = MANIFEST_NAME;
-      else { extraManifestSkipped = true; continue; }
-    }
-    const target = path.join(behaviorsDir, destRel);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.copyFileSync(path.join(srcDir, rel), target);
-    written.push(`${BEHAVIORS_DIR}/${folder}/${destRel.split(path.sep).join('/')}`);
-  }
-  if (extraManifestSkipped) {
-    warnings.push(`Multiple root manifest files found; kept "${manifestRel}" as ${MANIFEST_NAME} and skipped the other.`);
-  }
-  for (const rel of skippedBundleZips) {
-    warnings.push(`Skipped "${rel}": it collides with the bundle archive the extension mints for "${folder}". Rename it (or move it into a subfolder) to ship it as payload.`);
-  }
-
-  // Emit portal-style .mcs.yml companions so the on-disk layout matches a Copilot
-  // Studio portal import. Requires the agent schema prefix from settings.mcs.yml;
-  // without it (or with --no-sidecars) we leave a bare behaviors/ skill for the
-  // extension to synthesize on pull.
   let companions = [];
-  if (!noSidecars) {
-    if (!schemaPrefix) {
-      warnings.push(
-        `Could not read a usable single-line agent schemaName from ${SETTINGS_FILE}; expected a root plain or quoted scalar such as "schemaName: crbab_example". ` +
-        `Wrote a bare ${BEHAVIORS_DIR}/ skill without .mcs.yml companions (the extension will synthesize them on pull).`);
-    } else {
-      const prefixLen = `${BEHAVIORS_DIR}/${folder}/`.length;
-      const payloadRel = written
-        .map((w) => w.slice(prefixLen))
-        .filter((rel) => rel.toLowerCase() !== MANIFEST_NAME.toLowerCase());
-      const description = readManifestDescription(path.join(behaviorsDir, MANIFEST_NAME));
-      companions = writeMcsCompanions({ behaviorsDir, folder, prefix: schemaPrefix, description, payloadRel, warnings });
+  try {
+    for (const rel of allFiles) {
+      const leaf = rel.split('/').pop();
+      if (!includeSidecars && rel.indexOf('/') < 0 && isSidecarLeaf(leaf)) continue;
+      // The extension mints this skill's bundle as "<folder>.zip", so a root-level
+      // source file with that exact name would collide with it. Every other archive
+      // is ordinary payload and is copied verbatim.
+      if (rel.indexOf('/') < 0 && leaf.toLowerCase() === `${folder.toLowerCase()}.zip`) {
+        skippedBundleZips.push(rel);
+        continue;
+      }
+      // MCS companions are (re)generated below, never copied from the source.
+      if (leaf.toLowerCase().endsWith(MCS_SIDECAR_SUFFIX)) continue;
+      // The manifest must land as exactly SKILL.md; skip any duplicate-cased root manifest.
+      let destRel = rel;
+      if (isManifestLeaf(rel)) {
+        if (rel === manifestRel) destRel = MANIFEST_NAME;
+        else { extraManifestSkipped = true; continue; }
+      }
+      const target = path.join(stageDir, destRel);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(path.join(srcDir, rel), target);
+      written.push(`${BEHAVIORS_DIR}/${folder}/${destRel.split(path.sep).join('/')}`);
     }
+    if (extraManifestSkipped) {
+      warnings.push(`Multiple root manifest files found; kept "${manifestRel}" as ${MANIFEST_NAME} and skipped the other.`);
+    }
+    for (const rel of skippedBundleZips) {
+      warnings.push(`Skipped "${rel}": it collides with the bundle archive the extension mints for "${folder}". Rename it (or move it into a subfolder) to ship it as payload.`);
+    }
+
+    // Emit portal-style .mcs.yml companions so the on-disk layout matches a Copilot
+    // Studio portal import. Requires the agent schema prefix from settings.mcs.yml;
+    // without it (or with --no-sidecars) we leave a bare behaviors/ skill for the
+    // extension to synthesize on pull.
+    if (!noSidecars) {
+      if (!schemaPrefix) {
+        warnings.push(
+          `Could not read a usable single-line agent schemaName from ${SETTINGS_FILE}; expected a root plain or quoted scalar such as "schemaName: crbab_example". ` +
+          `Wrote a bare ${BEHAVIORS_DIR}/ skill without .mcs.yml companions (the extension will synthesize them on pull).`);
+      } else {
+        const prefixLen = `${BEHAVIORS_DIR}/${folder}/`.length;
+        const payloadRel = written
+          .map((w) => w.slice(prefixLen))
+          .filter((rel) => rel.toLowerCase() !== MANIFEST_NAME.toLowerCase());
+        const description = readManifestDescription(path.join(stageDir, MANIFEST_NAME));
+        companions = writeMcsCompanions({ behaviorsDir: stageDir, folder, prefix: schemaPrefix, description, payloadRel, warnings });
+      }
+    }
+
+    // Atomic promote: only now that every file exists in staging do we remove the
+    // old skill and move the fully-built one into place.
+    fs.rmSync(behaviorsDir, { recursive: true, force: true });
+    fs.renameSync(stageDir, behaviorsDir);
+  } finally {
+    fs.rmSync(stagingRoot, { recursive: true, force: true });
   }
 
   return {
