@@ -39,6 +39,10 @@
  * Zero runtime dependencies: uses the Node >=18 global fetch and the standard
  * library only. Optional GITHUB_TOKEN / GH_TOKEN raises the api.github.com rate
  * limit for the single tree call.
+ *
+ * The component shapes this script emits are documented in
+ * reference/skill-schema.md. Keep the two in sync: that file is what the
+ * /add-skill command and the copilot-studio-architect agent read.
  */
 
 const fs = require('fs');
@@ -72,6 +76,8 @@ const SETTINGS_FILE = 'settings.mcs.yml';
 // payload file gets a "<file>.mcs.yml" sidecar next to it.
 const SKILL_ANCHOR = 'skill.mcs.yml';
 const MCS_SIDECAR_SUFFIX = '.mcs.yml';
+// Dataverse caps a schema name at 100 characters. See reference/skill-schema.md.
+const SCHEMA_NAME_MAX = 100;
 // Windows reserved device names — unusable as a folder name there.
 const RESERVED_DEVICE_NAMES = new Set([
   'con', 'prn', 'aux', 'nul',
@@ -316,6 +322,41 @@ function fileSchemaSegment(fileName) {
   return String(fileName || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+// A component schema name is `<prefix>.<infix>.<segment>_<token>`, so the segment
+// gets whatever the 100-char Dataverse cap leaves after the prefix, the infix, the
+// token, and the 3 separators (two dots, one underscore).
+function schemaSegmentBudget(prefix, infix, tokenLen) {
+  return SCHEMA_NAME_MAX - String(prefix || '').length - infix.length - tokenLen - 3;
+}
+
+// The two component shapes a skill import emits. A prefix that leaves no room for
+// either one is fatal — better to stop than to write a schema name Dataverse rejects.
+const SCHEMA_SHAPES = [
+  { infix: 'skill', tokenLen: 3, label: 'the skill anchor' },
+  { infix: 'file', tokenLen: 5, label: 'skill payload files' },
+];
+
+function assertSchemaBudget(prefix) {
+  for (const { infix, tokenLen, label } of SCHEMA_SHAPES) {
+    if (schemaSegmentBudget(prefix, infix, tokenLen) < 1) {
+      throw new Error(
+        `The agent schema name "${prefix}" leaves no valid component-name space for ${label} under the ${SCHEMA_NAME_MAX}-character Dataverse limit.`);
+    }
+  }
+}
+
+// Truncate a schema segment on the right to its budget, warning when it happens so
+// the caller can tell the user the on-disk name and the schema name diverged.
+function fitSchemaSegment(segment, { prefix, infix, tokenLen, label, warnings }) {
+  const budget = schemaSegmentBudget(prefix, infix, tokenLen);
+  const seg = String(segment || '');
+  if (seg.length <= budget) return seg;
+  const cut = seg.slice(0, budget);
+  warnings.push(
+    `Schema name for ${label} was truncated to fit the ${SCHEMA_NAME_MAX}-character Dataverse limit ("${seg}" -> "${cut}").`);
+  return cut;
+}
+
 // The agent schemaName is the prefix every component hangs off; read it from the
 // workspace settings file. Returns null when it cannot be determined.
 function readAgentSchemaPrefix(wsDir) {
@@ -351,6 +392,16 @@ function readManifestDescription(manifestAbs) {
   return val;
 }
 
+// Plain scalars a YAML 1.1 parser (what the Copilot Studio tooling reads these
+// files with) resolves to something other than a string. Names like "on", "123",
+// or "null" must be quoted or they come back as a boolean, a number, or null.
+const YAML11_BOOL = /^(y|n|yes|no|true|false|on|off)$/i;
+const YAML11_NULL = /^(~|null)$/i;
+const YAML11_NUMBER =
+  /^[-+]?(0x[0-9a-f_]+|0o?[0-7_]+|[0-9][0-9_]*(\.[0-9_]*)?([eE][-+]?[0-9]+)?|\.[0-9_]+([eE][-+]?[0-9]+)?|\.(inf|nan))$/i;
+// Sexagesimals ("1:30") are integers in YAML 1.1.
+const YAML11_SEXAGESIMAL = /^[-+]?[0-9][0-9_]*(:[0-5]?[0-9])+(\.[0-9_]*)?$/;
+
 // Emit a YAML scalar the way the portal does: a plain scalar when unambiguous,
 // otherwise a double-quoted scalar. Byte-compatible with portal-authored anchors
 // for typical descriptions, while staying safe for values with YAML indicators.
@@ -363,7 +414,11 @@ function yamlScalar(value) {
     /\s#/.test(s) ||
     /:$/.test(s) ||
     /\s$/.test(s) ||
-    /[\n\r\t]/.test(s);
+    /[\n\r\t]/.test(s) ||
+    YAML11_BOOL.test(s) ||
+    YAML11_NULL.test(s) ||
+    YAML11_NUMBER.test(s) ||
+    YAML11_SEXAGESIMAL.test(s);
   if (!needsQuote) return s;
   const escaped = s
     .replace(/\\/g, '\\\\')
@@ -379,16 +434,25 @@ function yamlScalar(value) {
 // payload file (bundle skills only). `payloadRel` are POSIX-relative paths under the
 // skill folder, excluding the manifest. Returns the list of companion paths written
 // (relative to the workspace, POSIX-style).
-function writeMcsCompanions({ behaviorsDir, folder, prefix, description, payloadRel }) {
+function writeMcsCompanions({ behaviorsDir, folder, prefix, description, payloadRel, warnings }) {
   const isBundle = payloadRel.length > 0;
   const written = [];
 
-  const anchorLines = ['mcs.metadata:', `  componentName: ${folder}`];
+  const anchorLines = ['mcs.metadata:', `  componentName: ${yamlScalar(folder)}`];
   if (description) anchorLines.push(`  description: ${yamlScalar(description)}`);
-  anchorLines.push(`  schemaName: ${prefix}.skill.${folder}_${schemaToken(3)}`);
+  const skillSeg = fitSchemaSegment(folder, {
+    prefix, infix: 'skill', tokenLen: 3, label: `the skill anchor "${folder}"`, warnings,
+  });
+  anchorLines.push(`  schemaName: ${prefix}.skill.${skillSeg}_${schemaToken(3)}`);
   if (isBundle) {
-    anchorLines.push(`  bundle: ${prefix}.file.${fileSchemaSegment(`${folder}.zip`)}_${schemaToken(5)}`);
-    anchorLines.push(`  manifestSchemaName: ${prefix}.file.${fileSchemaSegment(MANIFEST_NAME)}_${schemaToken(5)}`);
+    const bundleSeg = fitSchemaSegment(fileSchemaSegment(`${folder}.zip`), {
+      prefix, infix: 'file', tokenLen: 5, label: `the "${folder}" bundle`, warnings,
+    });
+    const manifestSeg = fitSchemaSegment(fileSchemaSegment(MANIFEST_NAME), {
+      prefix, infix: 'file', tokenLen: 5, label: `the ${MANIFEST_NAME} manifest`, warnings,
+    });
+    anchorLines.push(`  bundle: ${prefix}.file.${bundleSeg}_${schemaToken(5)}`);
+    anchorLines.push(`  manifestSchemaName: ${prefix}.file.${manifestSeg}_${schemaToken(5)}`);
   }
   anchorLines.push('kind: InlineAgentSkill');
   anchorLines.push('authoringSource: Upload');
@@ -399,10 +463,13 @@ function writeMcsCompanions({ behaviorsDir, folder, prefix, description, payload
   if (isBundle) {
     for (const rel of payloadRel) {
       const leaf = rel.split('/').pop();
+      const fileSeg = fitSchemaSegment(fileSchemaSegment(leaf), {
+        prefix, infix: 'file', tokenLen: 5, label: `payload file "${rel}"`, warnings,
+      });
       const lines = [
         'mcs.metadata:',
-        `  componentName: ./${rel}`,
-        `  schemaName: ${prefix}.file.${fileSchemaSegment(leaf)}_${schemaToken(5)}`,
+        `  componentName: ${yamlScalar(`./${rel}`)}`,
+        `  schemaName: ${prefix}.file.${fileSeg}_${schemaToken(5)}`,
       ];
       fs.writeFileSync(path.join(behaviorsDir, rel) + MCS_SIDECAR_SUFFIX, lines.join('\n') + '\n');
       written.push(`${BEHAVIORS_DIR}/${folder}/${rel}${MCS_SIDECAR_SUFFIX}`);
@@ -452,6 +519,13 @@ function importSkill({ src, workspace, name, force, includeSidecars, noSidecars 
 
   const folder = sanitizeFolderName(name || path.basename(srcDir));
   const behaviorsDir = path.join(wsDir, BEHAVIORS_DIR, folder);
+
+  // The agent schema prefix decides how much room a component name has under the
+  // Dataverse cap. Resolve and validate it before materializing anything, so an
+  // unusable prefix fails fast instead of leaving a half-written skill behind.
+  const schemaPrefix = noSidecars ? null : readAgentSchemaPrefix(wsDir);
+  if (schemaPrefix) assertSchemaBudget(schemaPrefix);
+
   if (fs.existsSync(behaviorsDir)) {
     if (!force) {
       throw new Error(`${BEHAVIORS_DIR}/${folder} already exists in the workspace. Pass --force to overwrite, or choose another --name.`);
@@ -487,9 +561,7 @@ function importSkill({ src, workspace, name, force, includeSidecars, noSidecars 
   // without it (or with --no-sidecars) we leave a bare behaviors/ skill for the
   // extension to synthesize on pull.
   let companions = [];
-  let schemaPrefix = null;
   if (!noSidecars) {
-    schemaPrefix = readAgentSchemaPrefix(wsDir);
     if (!schemaPrefix) {
       warnings.push(`Could not read the agent schemaName from ${SETTINGS_FILE}; wrote a bare ${BEHAVIORS_DIR}/ skill without .mcs.yml companions (the extension will synthesize them on pull).`);
     } else {
@@ -498,7 +570,7 @@ function importSkill({ src, workspace, name, force, includeSidecars, noSidecars 
         .map((w) => w.slice(prefixLen))
         .filter((rel) => rel.toLowerCase() !== MANIFEST_NAME.toLowerCase());
       const description = readManifestDescription(path.join(behaviorsDir, MANIFEST_NAME));
-      companions = writeMcsCompanions({ behaviorsDir, folder, prefix: schemaPrefix, description, payloadRel });
+      companions = writeMcsCompanions({ behaviorsDir, folder, prefix: schemaPrefix, description, payloadRel, warnings });
     }
   }
 
@@ -642,9 +714,17 @@ async function main() {
   throw new Error(`Unknown command: ${cmd || '(none)'}. Use "list", "download" or "import".`);
 }
 
-main().catch((err) => {
-  process.stdout.write(JSON.stringify({ ok: false, error: err && err.message ? err.message : String(err) }) + '\n');
-  // Signal failure via exit code rather than process.exit(): a forced exit while
-  // fetch keep-alive sockets are still closing trips a libuv assertion on Windows.
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((err) => {
+    process.stdout.write(JSON.stringify({ ok: false, error: err && err.message ? err.message : String(err) }) + '\n');
+    // Signal failure via exit code rather than process.exit(): a forced exit while
+    // fetch keep-alive sockets are still closing trips a libuv assertion on Windows.
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  SCHEMA_NAME_MAX,
+  importSkill,
+  yamlScalar,
+};

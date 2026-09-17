@@ -21,6 +21,20 @@ command never pushes.
 
 Initial request: $ARGUMENTS
 
+## Authoritative schema — read this before importing
+
+The exact YAML for every skill component, the `behaviors/` file layout, anchor/sidecar rules, folder
+naming, and schema-name conventions live in a single shared reference —
+**`reference/skill-schema.md`**. It is the source of truth; the `copilot-studio-architect` agent and
+`scripts/add-skill.js` use the same file, so the three never drift. **Read it before step 5** and
+follow it exactly.
+
+Resolve its path via the plugin root: read
+`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` for the
+current `mcs-assistant` plugin, then read `path.join(pluginRoot, 'reference', 'skill-schema.md')`.
+If `plugin-paths.json` cannot be read, fall back to locating `reference/skill-schema.md` under the
+installed plugin directory.
+
 ---
 
 ## 1. Locate the helper script (non-blocking)
@@ -105,18 +119,16 @@ the user does not have one yet, tell them to clone/attach an agent first, and st
 
 Import writes the skill under `behaviors/<name>/`: the manifest as `SKILL.md` and every other payload
 file (e.g. `scripts/`) copied verbatim. By default it then also emits the **portal-style `.mcs.yml`
-companions** so the layout matches a Copilot Studio portal import:
-
-- an anchor `skill.mcs.yml` carrying the `InlineAgentSkill` identity (`componentName`, the manifest
-  `description`, a `schemaName`, `kind`, `authoringSource: Upload`), and
-- for **bundle** skills (any payload file beyond `SKILL.md`), a `bundle` + `manifestSchemaName` on the
-  anchor plus one `<file>.mcs.yml` sidecar next to every non-manifest payload file. Single-`SKILL.md`
-  skills get only the anchor (no `bundle`, no sidecars).
+companions** — an anchor `skill.mcs.yml` plus, for bundle skills, one sidecar per non-manifest
+payload file — so the on-disk layout matches a Copilot Studio portal import. The script owns those
+shapes; `reference/skill-schema.md` documents them.
 
 Every component's schema name is prefixed with the agent `schemaName` read from the workspace
 `settings.mcs.yml`. If that prefix cannot be determined - or you pass `--no-sidecars` - the import
 falls back to a **bare `behaviors/<name>/` folder** and the extension synthesizes the companions on
-the next workspace read / sync (a `warning` explains which happened).
+the next workspace read / sync (a `warning` explains which happened). If the agent `schemaName` is so
+long that it leaves no room for a component name under the 100-character Dataverse limit, the import
+fails before writing anything - relay that error and suggest a shorter agent schema name.
 
 ```bash
 node "<scriptPath>" import --src "<skill-folder>" --workspace "<cloned-agent-folder>" [--name "<folder>"] [--force] [--no-sidecars]
