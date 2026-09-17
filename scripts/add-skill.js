@@ -277,44 +277,55 @@ async function downloadSkill(slug, dest) {
   if (bundleFile !== destRoot && !bundleFile.startsWith(destRoot + path.sep)) {
     throw new Error(`Refusing to download "${slug}": its bundle does not resolve inside ${destRoot}.`);
   }
-  // A download reflects the gallery as it is now, so clear any earlier copy first:
-  // otherwise files deleted upstream (or left behind by a half-finished run) linger
-  // and get imported as if they were still part of the skill.
-  fs.rmSync(skillDir, { recursive: true, force: true });
-  fs.rmSync(bundleFile, { force: true });
-  fs.mkdirSync(skillDir, { recursive: true });
-
-  const saved = [];
   const meta = await readMetadata(slug);
+  fs.mkdirSync(destRoot, { recursive: true });
+  const stagingRoot = fs.mkdtempSync(path.join(destRoot, '.add-skill-download-'));
+  const stagingSkillDir = path.join(stagingRoot, 'skill');
+  const stagingBundleFile = path.join(stagingRoot, 'bundle.zip');
+  const payload = payloadFiles(files);
+  let hasDownloadedBundle = false;
 
-  // Always write the unpacked payload (SKILL.md + scripts/references/assets).
-  for (const rel of payloadFiles(files)) {
-    const buf = await fetchBuffer(submissionUrl(slug, rel));
-    const target = path.join(skillDir, rel);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.writeFileSync(target, buf);
-    saved.push(target);
-  }
+  try {
+    fs.mkdirSync(stagingSkillDir, { recursive: true });
 
-  // When the gallery publishes a prebuilt bundle, also save the .zip.
-  let zipPath = null;
-  if (info.hasBundle) {
-    try {
-      const buf = await fetchBuffer(bundleUrl(slug));
-      zipPath = bundleFile;
-      fs.writeFileSync(zipPath, buf);
-      saved.push(zipPath);
-    } catch (e) {
-      // A 404 means this gallery entry has no prebuilt archive; the unpacked
-      // payload remains the source of truth. Other failures are transient or
-      // operational and must not be reported as a successful full download.
-      if (e && e.status === 404) {
-        zipPath = null;
-      } else {
-        throw e;
+    // Always write the unpacked payload (SKILL.md + scripts/references/assets).
+    for (const rel of payload) {
+      const buf = await fetchBuffer(submissionUrl(slug, rel));
+      const target = path.join(stagingSkillDir, rel);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, buf);
+    }
+
+    // When the gallery publishes a prebuilt bundle, also save the .zip.
+    if (info.hasBundle) {
+      try {
+        const buf = await fetchBuffer(bundleUrl(slug));
+        fs.writeFileSync(stagingBundleFile, buf);
+        hasDownloadedBundle = true;
+      } catch (e) {
+        // A 404 means this gallery entry has no prebuilt archive; the unpacked
+        // payload remains the source of truth. Other failures are transient or
+        // operational and must not be reported as a successful full download.
+        if (!(e && e.status === 404)) {
+          throw e;
+        }
       }
     }
+
+    // Promote only after every required request succeeds. This both removes stale
+    // files and preserves a previous good download when a refresh fails.
+    fs.rmSync(skillDir, { recursive: true, force: true });
+    fs.rmSync(bundleFile, { force: true });
+    fs.mkdirSync(path.dirname(skillDir), { recursive: true });
+    fs.renameSync(stagingSkillDir, skillDir);
+    if (hasDownloadedBundle) fs.renameSync(stagingBundleFile, bundleFile);
+  } finally {
+    fs.rmSync(stagingRoot, { recursive: true, force: true });
   }
+
+  const saved = payload.map((rel) => path.join(skillDir, rel));
+  const zipPath = hasDownloadedBundle ? bundleFile : null;
+  if (zipPath) saved.push(zipPath);
 
   return {
     slug,

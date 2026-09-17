@@ -465,6 +465,34 @@ test("surfaces non-404 bundle failures instead of reporting a partial success", 
   await assert.rejects(() => downloadSkill("demo", root), /503/);
 });
 
+test("keeps the previous download intact when a refresh fails", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  fs.mkdirSync(path.join(root, "demo"), { recursive: true });
+  fs.writeFileSync(path.join(root, "demo", "SKILL.md"), "previous manifest\n");
+  fs.writeFileSync(path.join(root, "demo.zip"), "previous bundle");
+  stubGallery(t, {
+    files: {
+      "submissions/demo/SKILL.md": "---\nname: new demo\n---\n",
+      "submissions/demo/metadata.json": JSON.stringify({
+        name: "New Demo",
+        platforms: ["Copilot Studio"],
+      }),
+      "submissions/demo/scripts/run.py": "print('new')\n",
+    },
+    status: { "/bundles/demo.zip": 503 },
+  });
+
+  await assert.rejects(() => downloadSkill("demo", root), /503/);
+
+  assert.equal(
+    fs.readFileSync(path.join(root, "demo", "SKILL.md"), "utf8"),
+    "previous manifest\n"
+  );
+  assert.equal(fs.readFileSync(path.join(root, "demo.zip"), "utf8"), "previous bundle");
+  assert.ok(!fs.existsSync(path.join(root, "demo", "scripts", "run.py")));
+});
+
 test("treats a missing optional bundle as a successful unpacked download", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
   fixtureRoots.push(root);
