@@ -68,6 +68,14 @@ test("quotes plain scalars that would be read as numbers or null", () => {
   assert.equal(yamlScalar("~"), '"~"');
 });
 
+test("quotes YAML timestamps so component metadata remains string-valued", () => {
+  for (const timestamp of ["2026-09-17", "2026-09-17T12:00:00Z"]) {
+    const emitted = yamlScalar(timestamp);
+    assert.equal(emitted, `"${timestamp}"`);
+    assert.equal(yaml.load(`value: ${emitted}\n`).value, timestamp);
+  }
+});
+
 test("leaves an unambiguous scalar unquoted", () => {
   assert.equal(yamlScalar("make-restaurant-reservation"), "make-restaurant-reservation");
 });
@@ -176,6 +184,18 @@ test("still writes companions when settings comments the agent schemaName", () =
   assert.ok(result.companions.length > 0, "expected .mcs.yml companions to be written");
 });
 
+test("explains the accepted syntax when a multiline schemaName falls back to a bare skill", () => {
+  const { workspace, src } = makeFixture({
+    settingsLine: "schemaName: >-\n  crbab_demo_dcF_b3",
+  });
+  const result = importSkill({ src, workspace, name: "demo" });
+  assert.equal(result.schemaPrefix, null);
+  assert.ok(
+    result.warnings.some((w) => /single-line.*schemaName.*plain or quoted/i.test(w)),
+    `expected a syntax-specific warning, got: ${JSON.stringify(result.warnings)}`
+  );
+});
+
 // --- Schema name shape ------------------------------------------------------
 
 test("keeps a dotted skill name from adding extra schema-name segments", () => {
@@ -194,6 +214,13 @@ test("strips non-alphanumerics from the anchor schema segment like the extension
   const result = importSkill({ src, workspace, name: "my-cool.skill" });
   const anchor = readAnchor(workspace, result.folder);
   assert.match(anchor["mcs.metadata"].schemaName, /^crbab_demo_dcF_b3\.skill\.mycoolskill_[A-Za-z0-9]{3}$/);
+});
+
+test("prefixes Windows reserved device stems even when an extension follows", () => {
+  const { workspace, src } = makeFixture({ schemaName: "crbab_demo_dcF_b3" });
+  const result = importSkill({ src, workspace, name: "CON.txt" });
+  assert.equal(result.folder, "skill-CON.txt");
+  assert.ok(fs.existsSync(path.join(workspace, "behaviors", "skill-CON.txt", "SKILL.md")));
 });
 
 // --- Payload fidelity -------------------------------------------------------
@@ -232,6 +259,24 @@ test("excludes a mixed-case sidecar file the same way as its lowercase spelling"
   const dir = path.join(workspace, "behaviors", result.folder);
   assert.ok(!fs.existsSync(path.join(dir, "Metadata.json")), "Metadata.json should be excluded");
   assert.ok(!fs.existsSync(path.join(dir, "README.MD")), "README.MD should be excluded");
+});
+
+test("uses a non-empty schema segment for payload names without alphanumerics", () => {
+  const { workspace, src } = makeFixture({
+    schemaName: "crbab_demo_dcF_b3",
+    payload: { "#": "payload\n" },
+  });
+  const result = importSkill({ src, workspace, name: "demo" });
+  const sidecar = yaml.load(
+    fs.readFileSync(
+      path.join(workspace, "behaviors", result.folder, "#.mcs.yml"),
+      "utf8"
+    )
+  );
+  assert.match(
+    sidecar["mcs.metadata"].schemaName,
+    /^crbab_demo_dcF_b3\.file\.file_[A-Za-z0-9]{5}$/
+  );
 });
 
 // --- Pretty listing ---------------------------------------------------------

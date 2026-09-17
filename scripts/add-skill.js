@@ -351,7 +351,8 @@ function sanitizeFolderName(name) {
     .replace(/-+/g, '-')
     .replace(/^[-.]+|[-.]+$/g, '');
   if (s.length === 0) s = 'skill';
-  if (RESERVED_DEVICE_NAMES.has(s.toLowerCase())) s = `skill-${s}`;
+  const deviceStem = s.split('.')[0].toLowerCase();
+  if (RESERVED_DEVICE_NAMES.has(deviceStem)) s = `skill-${s}`;
   if (s.length > 60) s = s.slice(0, 60).replace(/[-.]+$/g, '');
   return s;
 }
@@ -377,7 +378,8 @@ function schemaToken(len) {
 // The <segment> of a file component's schema name: lowercase, alphanumerics only
 // (SKILL.md -> skillmd, template.docx -> templatedocx, redline.py -> redlinepy).
 function fileSchemaSegment(fileName) {
-  return String(fileName || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const segment = String(fileName || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return segment.length === 0 ? 'file' : segment;
 }
 
 // A component schema name is `<prefix>.<infix>.<segment>_<token>`, so the segment
@@ -489,6 +491,8 @@ const YAML11_NUMBER =
   /^[-+]?(0x[0-9a-f_]+|0o?[0-7_]+|[0-9][0-9_]*(\.[0-9_]*)?([eE][-+]?[0-9]+)?|\.[0-9_]+([eE][-+]?[0-9]+)?|\.(inf|nan))$/i;
 // Sexagesimals ("1:30") are integers in YAML 1.1.
 const YAML11_SEXAGESIMAL = /^[-+]?[0-9][0-9_]*(:[0-5]?[0-9])+(\.[0-9_]*)?$/;
+const YAML11_TIMESTAMP =
+  /^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:(?:[Tt]|[ \t]+)[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]*)?(?:[ \t]*(?:Z|[-+][0-9]{1,2}(?::[0-9]{2})?))?)?$/;
 
 // Emit a YAML scalar the way the portal does: a plain scalar when unambiguous,
 // otherwise a double-quoted scalar. Byte-compatible with portal-authored anchors
@@ -506,7 +510,8 @@ function yamlScalar(value) {
     YAML11_BOOL.test(s) ||
     YAML11_NULL.test(s) ||
     YAML11_NUMBER.test(s) ||
-    YAML11_SEXAGESIMAL.test(s);
+    YAML11_SEXAGESIMAL.test(s) ||
+    YAML11_TIMESTAMP.test(s);
   if (!needsQuote) return s;
   const escaped = s
     .replace(/\\/g, '\\\\')
@@ -661,7 +666,9 @@ function importSkill({ src, workspace, name, force, includeSidecars, noSidecars 
   let companions = [];
   if (!noSidecars) {
     if (!schemaPrefix) {
-      warnings.push(`Could not read a usable agent schemaName from ${SETTINGS_FILE}; wrote a bare ${BEHAVIORS_DIR}/ skill without .mcs.yml companions (the extension will synthesize them on pull).`);
+      warnings.push(
+        `Could not read a usable single-line agent schemaName from ${SETTINGS_FILE}; expected a root plain or quoted scalar such as "schemaName: crbab_example". ` +
+        `Wrote a bare ${BEHAVIORS_DIR}/ skill without .mcs.yml companions (the extension will synthesize them on pull).`);
     } else {
       const prefixLen = `${BEHAVIORS_DIR}/${folder}/`.length;
       const payloadRel = written

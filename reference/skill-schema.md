@@ -46,7 +46,7 @@ A **bundle** skill (any payload file beyond `SKILL.md`) gets all three.
 
 ```yaml
 mcs.metadata:
-  componentName: make-restaurant-reservation
+  componentName: "make-restaurant-reservation"
   description: "Guides the user through making a restaurant reservation."
 kind: InlineAgentSkill
 content: |
@@ -123,7 +123,8 @@ A value **must** be emitted as a double-quoted scalar whenever it:
   contains `: `, ` #`, a trailing `:`, trailing whitespace, or any newline/tab; **or**
 - would resolve to a non-string under **YAML 1.1**, which is what the Copilot Studio tooling reads
   these files with — `y`, `n`, `yes`, `no`, `true`, `false`, `on`, `off` (any casing); `~`, `null`;
-  any integer, float, hex, octal, `.inf`/`.nan`; and sexagesimals such as `1:30`.
+  any integer, float, hex, octal, `.inf`/`.nan`; sexagesimals such as `1:30`; and timestamps such as
+  `2026-09-17` or `2026-09-17T12:00:00Z`.
 
 A skill folder named `on` or `123` is the common trap: emitted plain, it comes back as the boolean
 `true` or the number `123`.
@@ -146,7 +147,7 @@ segment, so keep it filesystem- and Dataverse-safe:
   collapse runs of `-`, and trim leading/trailing `-` and `.`.
 - Fall back to `skill` when that leaves an empty string.
 - Prefix Windows reserved device names (`con`, `prn`, `aux`, `nul`, `com1`–`com9`, `lpt1`–`lpt9`)
-  with `skill-`.
+  with `skill-`, checking the stem before the first dot as well (`CON.txt` → `skill-CON.txt`).
 - Cap the result at 60 characters. This is a readability cap, **not** the schema limit — see below.
 
 Dots and dashes survive here on purpose — they read well as a display name — so the schema segment is
@@ -163,7 +164,7 @@ Every component schema name has the shape:
 | Component | `<infix>` | `<segment>` | `<token>` |
 |---|---|---|---|
 | Skill anchor | `skill` | the `behaviors/` folder name with every non-alphanumeric removed (`my.cool-skill` → `mycoolskill`), falling back to `skill` when that empties it | 3 chars |
-| Manifest, bundle, payload file | `file` | the file name, lowercased, non-alphanumerics removed (`SKILL.md` → `skillmd`, `redline.py` → `redlinepy`) | 5 chars |
+| Manifest, bundle, payload file | `file` | the file name, lowercased, non-alphanumerics removed (`SKILL.md` → `skillmd`, `redline.py` → `redlinepy`), falling back to `file` when that empties it | 5 chars |
 
 `<agentSchemaName>` is read from the workspace `settings.mcs.yml` (e.g. `crbab_guitarcoach_dcF_b3`).
 `<token>` is a random base62 string; its length is cosmetic parity with portal output — only validity
@@ -184,6 +185,9 @@ parser would before using it as a prefix:
 - Drop a trailing `#` comment on an unquoted value.
 - Require the result to match `^[A-Za-z][A-Za-z0-9_]*$`. Anything else is not a usable Dataverse
   prefix; treat it as "no prefix" and fall back to a bare skill rather than emitting it verbatim.
+- Keep the value on the `schemaName:` line. Full YAML scalar forms such as `>-` blocks are outside
+  this zero-runtime-dependency parser's contract; the fallback warning identifies the accepted
+  single-line plain or quoted form.
 
 ### 100-character schema-name budget
 

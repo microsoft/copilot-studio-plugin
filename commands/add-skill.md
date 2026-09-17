@@ -128,7 +128,8 @@ Every component's schema name is prefixed with the agent `schemaName` read from 
 `settings.mcs.yml`. If that value is missing, or is not a usable Dataverse prefix - or you pass
 `--no-sidecars` - the import falls back to a **bare `behaviors/<name>/` folder** and the extension
 synthesizes the companions on the next workspace read / sync. A `warning` explains the fallback
-except when you asked for it with `--no-sidecars`. If the agent `schemaName` is so
+and the accepted single-line plain or quoted `schemaName:` syntax, except when you asked for it with
+`--no-sidecars`. If the agent `schemaName` is so
 long that it leaves no room for a component name under the 100-character Dataverse limit, the import
 fails before writing anything - relay that error and suggest a shorter agent schema name.
 
