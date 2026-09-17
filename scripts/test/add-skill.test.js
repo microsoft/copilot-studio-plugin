@@ -252,11 +252,12 @@ test("drops the Copilot Studio qualifier from the heading when listing every pla
 // --- Gallery fetch behaviour ------------------------------------------------
 
 // Serve the gallery from an in-memory tree so download/list run without network.
-function stubGallery(t, { files, status = {} }) {
+function stubGallery(t, { files, bundles = {}, status = {}, requests = [] }) {
   const real = global.fetch;
   t.after(() => { global.fetch = real; });
   global.fetch = async (url) => {
     const u = String(url);
+    requests.push(u);
     const fail = Object.keys(status).find((k) => u.includes(k));
     if (fail) {
       const code = status[fail];
@@ -269,9 +270,21 @@ function stubGallery(t, { files, status = {} }) {
       });
       return { ok: true, status: 200, statusText: "OK", text: async () => body };
     }
-    const m = u.match(/\/main\/(submissions\/.+)$/);
-    if (m && files[m[1]] !== undefined) {
-      const body = files[m[1]];
+    const parsed = new URL(u);
+    const rawMatch = parsed.pathname.match(/\/main\/(submissions\/.+)$/);
+    const rawPath = rawMatch ? decodeURIComponent(rawMatch[1]) : null;
+    if (rawPath && files[rawPath] !== undefined) {
+      const body = files[rawPath];
+      return {
+        ok: true, status: 200, statusText: "OK",
+        text: async () => body,
+        arrayBuffer: async () => Buffer.from(body),
+      };
+    }
+    const bundleMatch = parsed.pathname.match(/\/bundles\/(.+\.zip)$/);
+    const bundleName = bundleMatch ? decodeURIComponent(bundleMatch[1]) : null;
+    if (bundleName && bundles[bundleName] !== undefined) {
+      const body = bundles[bundleName];
       return {
         ok: true, status: 200, statusText: "OK",
         text: async () => body,
@@ -293,6 +306,57 @@ test("surfaces a non-404 metadata failure instead of silently dropping the skill
   await assert.rejects(() => listSkills({ all: true }), /500/);
 });
 
+test("surfaces malformed metadata instead of silently dropping the skill", async (t) => {
+  stubGallery(t, {
+    files: {
+      "submissions/demo/SKILL.md": "---\nname: demo\n---\n",
+      "submissions/demo/metadata.json": "{ not valid JSON",
+    },
+  });
+  await assert.rejects(
+    () => listSkills({ all: true }),
+    /invalid metadata\.json.*demo/i
+  );
+});
+
+test("URL-encodes gallery slugs and each payload path segment", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  const slug = "demo #1";
+  const requests = [];
+  stubGallery(t, {
+    files: {
+      [`submissions/${slug}/SKILL.md`]: "---\nname: demo\n---\n",
+      [`submissions/${slug}/metadata.json`]: JSON.stringify({
+        name: "Demo",
+        platforms: ["Copilot Studio"],
+      }),
+      [`submissions/${slug}/scripts/run #1.py`]: "print('ok')\n",
+    },
+    bundles: { [`${slug}.zip`]: "PK\u0003\u0004stub" },
+    requests,
+  });
+
+  const result = await downloadSkill(slug, root);
+
+  assert.equal(
+    fs.readFileSync(path.join(result.dir, "scripts", "run #1.py"), "utf8"),
+    "print('ok')\n"
+  );
+  assert.ok(
+    requests.some((u) => u.includes("/submissions/demo%20%231/metadata.json")),
+    `metadata slug was not encoded: ${JSON.stringify(requests)}`
+  );
+  assert.ok(
+    requests.some((u) => u.includes("/submissions/demo%20%231/scripts/run%20%231.py")),
+    `payload path was not encoded: ${JSON.stringify(requests)}`
+  );
+  assert.ok(
+    requests.some((u) => u.includes("/bundles/demo%20%231.zip")),
+    `bundle slug was not encoded: ${JSON.stringify(requests)}`
+  );
+});
+
 test("removes files left over from a previous download of the same slug", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
   fixtureRoots.push(root);
@@ -311,4 +375,67 @@ test("removes files left over from a previous download of the same slug", async 
     !fs.existsSync(path.join(root, "demo", "scripts", "old.py")),
     "stale scripts/old.py survived a re-download"
   );
+});
+
+test("removes a stale sibling bundle when a refreshed bundle is unavailable", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  const files = {
+    "submissions/demo/SKILL.md": "---\nname: demo\n---\n",
+    "submissions/demo/metadata.json": JSON.stringify({
+      name: "Demo",
+      platforms: ["Copilot Studio"],
+    }),
+    "submissions/demo/scripts/run.py": "print('ok')\n",
+  };
+  const bundles = { "demo.zip": "PK\u0003\u0004old" };
+  stubGallery(t, { files, bundles });
+
+  const first = await downloadSkill("demo", root);
+  assert.ok(first.zip);
+  assert.ok(fs.existsSync(path.join(root, "demo.zip")));
+
+  delete bundles["demo.zip"];
+  const second = await downloadSkill("demo", root);
+
+  assert.equal(second.zip, null);
+  assert.ok(!fs.existsSync(path.join(root, "demo.zip")), "stale demo.zip survived refresh");
+});
+
+test("surfaces non-404 bundle failures instead of reporting a partial success", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  stubGallery(t, {
+    files: {
+      "submissions/demo/SKILL.md": "---\nname: demo\n---\n",
+      "submissions/demo/metadata.json": JSON.stringify({
+        name: "Demo",
+        platforms: ["Copilot Studio"],
+      }),
+      "submissions/demo/scripts/run.py": "print('ok')\n",
+    },
+    status: { "/bundles/demo.zip": 503 },
+  });
+
+  await assert.rejects(() => downloadSkill("demo", root), /503/);
+});
+
+test("treats a missing optional bundle as a successful unpacked download", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  stubGallery(t, {
+    files: {
+      "submissions/demo/SKILL.md": "---\nname: demo\n---\n",
+      "submissions/demo/metadata.json": JSON.stringify({
+        name: "Demo",
+        platforms: ["Copilot Studio"],
+      }),
+      "submissions/demo/scripts/run.py": "print('ok')\n",
+    },
+  });
+
+  const result = await downloadSkill("demo", root);
+
+  assert.equal(result.zip, null);
+  assert.ok(fs.existsSync(path.join(result.dir, "scripts", "run.py")));
 });

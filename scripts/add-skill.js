@@ -122,6 +122,22 @@ async function fetchBuffer(url) {
   return Buffer.from(await res.arrayBuffer());
 }
 
+function encodePathSegment(value) {
+  return encodeURIComponent(String(value));
+}
+
+function submissionUrl(slug, relativePath) {
+  const encodedPath = String(relativePath)
+    .split('/')
+    .map(encodePathSegment)
+    .join('/');
+  return `${RAW_BASE}/submissions/${encodePathSegment(slug)}/${encodedPath}`;
+}
+
+function bundleUrl(slug) {
+  return `${PAGES_BASE}/bundles/${encodePathSegment(slug)}.zip`;
+}
+
 // Bounded-concurrency map so `list` does not open ~100 sockets at once.
 async function mapLimit(items, limit, worker) {
   const results = new Array(items.length);
@@ -187,7 +203,7 @@ function classify(files) {
 async function readMetadata(slug) {
   let text;
   try {
-    text = await fetchText(`${RAW_BASE}/submissions/${slug}/metadata.json`);
+    text = await fetchText(submissionUrl(slug, 'metadata.json'));
   } catch (e) {
     // A missing metadata.json simply means "not a listable skill". Any other
     // failure (rate limit, outage) must surface instead of silently shrinking
@@ -197,8 +213,10 @@ async function readMetadata(slug) {
   }
   try {
     return JSON.parse(text);
-  } catch {
-    return null;
+  } catch (e) {
+    throw new Error(
+      `Invalid metadata.json for gallery skill "${slug}": ${e && e.message ? e.message : String(e)}`,
+      { cause: e });
   }
 }
 
@@ -255,10 +273,15 @@ async function downloadSkill(slug, dest) {
   if (skillDir !== destRoot && !skillDir.startsWith(destRoot + path.sep)) {
     throw new Error(`Refusing to download "${slug}": it does not resolve to a folder inside ${destRoot}.`);
   }
+  const bundleFile = path.resolve(dest, `${slug}.zip`);
+  if (bundleFile !== destRoot && !bundleFile.startsWith(destRoot + path.sep)) {
+    throw new Error(`Refusing to download "${slug}": its bundle does not resolve inside ${destRoot}.`);
+  }
   // A download reflects the gallery as it is now, so clear any earlier copy first:
   // otherwise files deleted upstream (or left behind by a half-finished run) linger
   // and get imported as if they were still part of the skill.
   fs.rmSync(skillDir, { recursive: true, force: true });
+  fs.rmSync(bundleFile, { force: true });
   fs.mkdirSync(skillDir, { recursive: true });
 
   const saved = [];
@@ -266,7 +289,7 @@ async function downloadSkill(slug, dest) {
 
   // Always write the unpacked payload (SKILL.md + scripts/references/assets).
   for (const rel of payloadFiles(files)) {
-    const buf = await fetchBuffer(`${RAW_BASE}/submissions/${slug}/${rel}`);
+    const buf = await fetchBuffer(submissionUrl(slug, rel));
     const target = path.join(skillDir, rel);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, buf);
@@ -277,13 +300,19 @@ async function downloadSkill(slug, dest) {
   let zipPath = null;
   if (info.hasBundle) {
     try {
-      const buf = await fetchBuffer(`${PAGES_BASE}/bundles/${slug}.zip`);
-      zipPath = path.join(dest, `${slug}.zip`);
+      const buf = await fetchBuffer(bundleUrl(slug));
+      zipPath = bundleFile;
       fs.writeFileSync(zipPath, buf);
       saved.push(zipPath);
     } catch (e) {
-      // Non-fatal: the unpacked payload above is the source of truth.
-      zipPath = null;
+      // A 404 means this gallery entry has no prebuilt archive; the unpacked
+      // payload remains the source of truth. Other failures are transient or
+      // operational and must not be reported as a successful full download.
+      if (e && e.status === 404) {
+        zipPath = null;
+      } else {
+        throw e;
+      }
     }
   }
 
