@@ -15,6 +15,21 @@ This plugin work in progress and supported by Github Issues only at this time, w
 /plugin install mcs-assistant@copilot-studio-plugin
 ```
 
+## Commands
+
+| Command | Description |
+|---|---|
+| `/create` | Create, structure, and push a new CLI-authored Copilot Studio agent from a natural-language description. |
+| `/migrate` | Migrate a classic Copilot Studio agent to the new agentic-loop architecture. |
+| `/add-knowledge` | Add public website, SharePoint, OneDrive, or uploaded-file knowledge to a local agent. |
+| `/chat` | Chat with and test a locally cloned CLI-authored agent. |
+
+## Skills
+
+| Skill | Description |
+|---|---|
+| `create-copilot-studio-agent` | Reusable procedure for creating, structuring, validating, and pushing a new CLI-authored Copilot Studio agent. It is loaded automatically for matching requests and is also the implementation behind `/create`. |
+
 ## Trademarks
 
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
