@@ -112,8 +112,13 @@ Before writing YAML:
 
 1. Confirm that the target directory contains `settings.mcs.yml` and `agent.sync.yaml`.
 2. Read `settings.mcs.yml` and preserve its `displayName`, `schemaName`, authoring model, recognizer, model, authentication, access policy, language, and other initialized identity fields.
-3. Record the exact `schemaName`. Use it as the namespace for every newly authored component filename.
-4. Confirm that `.mcs\` exists for a sync-connected workspace, but never read it as an authoring source or edit it.
+3. Record the exact `schemaName` and derive its publisher customization prefix (the portion through
+   the first underscore, such as `catmgr`). Use that valid prefix for every newly authored flat
+   component filename and budget the full derived component schema to at most 100 characters.
+4. Confirm that `.mcs\` exists for a sync-connected workspace, but never use it as an authoring
+   source or edit it. The create workflow may inspect `.mcs\conn.json` separately to assess VS Code
+   extension readiness; that inspection and any required reattachment remain outside the
+   Architect's responsibilities.
 5. Inventory existing files under `behaviors\`, `capabilities\`, and `infrastructure\` before adding components. Reuse compatible components and avoid duplicate skills, knowledge sources, tools, and connection references.
 6. Treat the workspace supplied to this agent as already pulled from the target environment. PAC authentication, pull, push, and publish belong to the Copilot Studio Manage agent. The required lifecycle is: initialize -> pull -> architect edits -> push. Publishing remains a separate, explicitly confirmed action.
 
@@ -156,19 +161,31 @@ kind: <component kind>
 
 Use descriptive, orchestration-friendly metadata.
 
-Every newly authored bot-component filename must start with a valid Dataverse customization prefix. The safest convention is to namespace it with the exact agent `schemaName` read from `settings.mcs.yml`:
+Every newly authored bot-component filename must start with the valid Dataverse customization prefix
+derived from the agent `schemaName`:
 
 ```text
-<schemaName>.<slug>_<short-unique-id>.mcs.yml
+<publisher-prefix>_<slug>_<short-unique-id>.mcs.yml
 ```
 
 For example, when `schemaName` is `catmgr_WeatherInformationAssistant`:
 
 ```text
-catmgr_WeatherInformationAssistant.get-weather_a1B2c3.mcs.yml
+catmgr_getweather_a1B2c3.mcs.yml
 ```
 
 Do not create an unprefixed file such as `get-weather_a1B2c3.mcs.yml`. Dataverse derives a bot-component schema name from the authored component path, and an unprefixed name can fail during push with `ExportKeyAttributeInvalidPrefix`.
+
+Also enforce Dataverse's 100-character maximum for `botcomponent.schemaname`. Before writing a flat
+component, conservatively require:
+
+```text
+length(<agent-schemaName> + "." + <filename-without-.mcs.yml>) <= 100
+```
+
+Shorten the descriptive slug when necessary. Never remove or truncate the publisher prefix or the
+short uniqueness suffix. Repeating a long full agent `schemaName` in every filename can pass the
+prefix check but fail push with `StringLengthTooLong`.
 
 Keep existing filenames and generated suffixes when editing existing components. After a push and pull, PAC may normalize an inline skill into a directory such as `behaviors\<component-schema-name>\skill.mcs.yml`; treat that as the canonical synchronized layout and do not move it back manually.
 
@@ -374,7 +391,8 @@ Write or update the components stated above, with detailed descriptions, metadat
 For every new component:
 
 1. Choose the correct component directory.
-2. Build the filename using the exact `schemaName`, a readable slug, and a short unique suffix.
+2. Build the filename using the publisher prefix derived from `schemaName`, a budgeted readable
+   slug, and a short unique suffix.
 3. Add the required `mcs.metadata` block and component `kind`.
 4. Use the authoritative schema reference for the selected component type.
 5. Check that any referenced knowledge source, tool, connection, or file actually exists.
@@ -405,7 +423,8 @@ Before returning control to the caller:
 
 1. Confirm that `settings.mcs.yml` remains present and retains initialized identity fields.
 2. Confirm that every new component is under `behaviors\`, `capabilities\`, or `infrastructure\` as appropriate.
-3. Confirm that every new authored bot-component filename begins with the exact `schemaName` namespace and therefore with a valid publisher prefix.
+3. Confirm that every new authored bot-component filename begins with the valid publisher prefix and
+   stays within the conservative 100-character derived-schema budget.
 4. Confirm that every authored component except `settings.mcs.yml` has `mcs.metadata` and `kind`.
 5. Confirm that no `.mcs\` file or `agent.sync.yaml` was edited.
 6. Confirm that live-data claims have a real tool or are explicitly implemented as a best-effort grounded fallback with non-fabrication instructions.
@@ -522,7 +541,7 @@ Before reporting completion, the mechanism should check the generated YAML imple
 | Missing integrations | Are unknown systems listed as open questions? |
 | Evals | Are there realistic prompts for the core behaviors? |
 | Initialized identity | Were `displayName`, `schemaName`, authoring model, and other generated identity fields preserved? |
-| Component namespace | Does every new authored component filename begin with the exact agent `schemaName` namespace? |
+| Component namespace | Does every new authored component filename begin with the valid publisher prefix and fit the 100-character derived-schema budget? |
 | Component structure | Does every new component have the required metadata, kind, and correct directory? |
 | CLI state safety | Were `.mcs\` and `agent.sync.yaml` left untouched? |
 | Live-data integrity | Does each live-data promise use a real tool or an explicitly limited, non-fabricating grounding fallback? |
