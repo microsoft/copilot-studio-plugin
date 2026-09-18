@@ -24,6 +24,12 @@ This plugin work in progress and supported by Github Issues only at this time, w
 | `/add-knowledge` | Add public website, SharePoint, OneDrive, or uploaded-file knowledge to a local agent. |
 | `/chat` | Chat with and test a locally cloned CLI-authored agent. |
 
+## Skills
+
+| Skill | Description |
+|---|---|
+| `create-copilot-studio-agent` | Reusable procedure for creating, structuring, validating, and pushing a new CLI-authored Copilot Studio agent. It is loaded automatically for matching requests and is also the implementation behind `/create`. |
+
 ## Trademarks
 
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
