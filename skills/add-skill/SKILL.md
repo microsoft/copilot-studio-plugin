@@ -1,5 +1,6 @@
 ---
-description: Add an Agent Skill to a Copilot Studio agent - uploaded from your drive (a SKILL.md or .zip) or picked from the Power CAT "Cat Agent Skills" gallery - then optionally import it into a cloned agent workspace under behaviors/.
+name: add-skill
+description: Add an Agent Skill to a Copilot Studio agent - uploaded from your drive (a SKILL.md or .zip) or picked from the Power CAT "Cat Agent Skills" gallery - then optionally import it into a cloned agent workspace under behaviors/. Use when the user asks to add, import, upload, or install an Agent Skill (from a local SKILL.md/.zip or the Cat Agent Skills gallery) into a Copilot Studio agent.
 argument-hint: Optional skill name/slug or a local path to a SKILL.md / .zip
 allowed-tools: Bash(node *add-skill.js*), Read, Glob, Grep
 ---
@@ -18,7 +19,7 @@ folder), then optionally *import* it into a cloned Copilot Studio agent workspac
 the **portal-style `.mcs.yml` companions** (an anchor `skill.mcs.yml` plus per-file sidecars for
 bundle skills) so the on-disk layout matches a Copilot Studio portal import. Import only
 materializes files on disk; **publishing to the cloud is done from the VS Code Copilot Studio
-extension** (Agent Changes view / sync push) afterward - this command never pushes.
+extension** (Agent Changes view / sync push) afterward - this skill never pushes.
 
 Initial request: $ARGUMENTS
 
@@ -178,7 +179,7 @@ Tell the user, concisely:
 - If imported: the `behaviors/<name>/` path created, the `.mcs.yml` companions written (or that it
   fell back to a bare skill, with the reason from `warnings`), and any other warnings; and that
   **publishing to the cloud is the next step, done from the VS Code Copilot Studio extension** (Agent
-  Changes view / sync push) - this command does not push.
+  Changes view / sync push) - this skill does not push.
 
 ## Error handling
 

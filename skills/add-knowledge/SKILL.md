@@ -1,5 +1,6 @@
 ---
-description: Add a knowledge source (public website, SharePoint, OneDrive, or a locally uploaded file) to a locally-cloned Copilot Studio agentic-loop agent by writing the modern capabilities/knowledge YAML.
+name: add-knowledge
+description: Add a knowledge source (public website, SharePoint, OneDrive, or a locally uploaded file) to a locally-cloned Copilot Studio agentic-loop agent by writing the modern capabilities/knowledge YAML. Use when the user asks to add, attach, or ground a knowledge source (a public website, SharePoint or OneDrive link, or an uploaded file) on a locally-cloned Copilot Studio agent.
 argument-hint: A URL (website / SharePoint / OneDrive) or a local file path, plus an optional name/description
 allowed-tools: Read, Write, Glob, Grep, Bash(mkdir *), Bash(cp *), Bash(powershell *Copy-Item*), Bash(node *verify-knowledge-access.bundle.js*)
 ---
@@ -37,7 +38,7 @@ installed plugin directory.
 
 1. Auto-discover the cloned agent with `Glob: **/settings.mcs.yml`. A cloned agentic-loop workspace
    contains `settings.mcs.yml` at its root. **Never hardcode an agent name.**
-2. If none is found, tell the user this command needs a **locally-cloned agentic-loop agent** (clone
+2. If none is found, tell the user this skill needs a **locally-cloned agentic-loop agent** (clone
    one with `pac copilot clone`, or use `/migrate`). Stop.
 3. If several are found, ask the user which agent to add the knowledge to.
 4. Read the agent's **`schemaName`** from `settings.mcs.yml` (e.g. `crbab_guitarcoach_dcF_b3`) — it is

@@ -1,7 +1,7 @@
 # Knowledge Source Schema (authoritative)
 
 **Single source of truth** for how knowledge sources are represented in a modern Copilot Studio
-**agentic-loop** agent (`capabilities/knowledge`). Both the `/add-knowledge` command and the
+**agentic-loop** agent (`capabilities/knowledge`). Both the `add-knowledge` skill and the
 `copilot-studio-architect` agent consult this file — edit the schema **here only** so the two never
 drift.
 
@@ -205,8 +205,8 @@ Require an absolute HTTPS URL with no embedded username or password before apply
 ## Optional: verifying a SharePoint/OneDrive link before adding
 
 You can pre-check that a SharePoint/OneDrive link is valid and readable **without downloading the
-file**, using a single Microsoft Graph call (`GET /shares/{id}/driveItem`). The `/add-knowledge`
-command exposes this as an **opt-in** step backed by `scripts/verify-knowledge-access.bundle.js`.
+file**, using a single Microsoft Graph call (`GET /shares/{id}/driveItem`). The `add-knowledge`
+skill exposes this as an **opt-in** step backed by `scripts/verify-knowledge-access.bundle.js`.
 
 - **What it proves:** the author can read the item (`200`), or Graph denied it (`403` — either no
   access *or* the link doesn't resolve; the `/shares` endpoint returns `403` for both, and rarely a
