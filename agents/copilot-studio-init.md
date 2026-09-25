@@ -50,7 +50,8 @@ Use these constants exactly unless the user explicitly gives different values:
 4. If the target project directory already exists, stop and report the error, asking for the user intervention to delete such folder. Tell the user that the migration might already have been performed. In such case, the user either needs to delete the previous migrated agent or modify it (without running the /migrate command). Do not overwrite or delete the folder by yourself.
 5. After the command completes, confirm that the target project directory exists and contains `settings.mcs.yml`.
 6. If the expected `settings.mcs.yml` is missing, stop immediately and report what was missing.
-7. This operation is not idempotent: each successful run creates a new empty Copilot Studio agent project.
+7. Immediately run one `pac copilot pull` in the new project directory (see step 3 of the setup sequence). This is a sync step, not a second creation command, and it does not change the agent.
+8. This operation is not idempotent: each successful run creates a new empty Copilot Studio agent project.
 
 ## Required setup sequence
 
@@ -95,6 +96,16 @@ pac copilot init `
 
 Expected result: `$TARGET_PROJECT_DIR` exists and contains `settings.mcs.yml`.
 
+### 3. Pull once right away
+
+```powershell
+pac copilot pull --project-dir "$TARGET_PROJECT_DIR"
+```
+
+Copilot Studio publishes a new agent on its own shortly after `pac copilot init` (observed within about a minute with pac 2.12.2). If the workspace has not been pulled before that remote change, later pulls crash with `System.FormatException`, and a pull after a local edit can succeed while silently dropping content, so the later push step can't be trusted. Pulling once right after init avoids this.
+
+Expected result: exit code 0 and a `Pull complete.` line in the output (for example `Pull complete. 0 change(s) applied.`). If this pull itself fails, report the full output and stop.
+
 ## Final answer
 
 Keep the final answer short and factual. Include:
@@ -103,6 +114,6 @@ Keep the final answer short and factual. Include:
 2. The target environment ID.
 3. The target project directory.
 4. The publisher prefix used.
-5. Confirmation that `pac copilot init` completed.
+5. Confirmation that `pac copilot init` and the follow-up pull completed.
 
 Do not include migration design, source-agent analysis, or recommendations.
