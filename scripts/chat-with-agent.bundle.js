@@ -37029,6 +37029,44 @@ var require_response_format = __commonJS({
       }
       return out;
     }
+    var MAX_TOOL_RESULT_CHARS = 2e3;
+    var toolStatusRank = (status) => status === "started" ? 0 : 1;
+    function collectToolCalls(activities) {
+      const byId = /* @__PURE__ */ new Map();
+      let anonymous = 0;
+      for (const a of activities || []) {
+        for (const e of a.entities || []) {
+          if (e.type !== "toolCall") continue;
+          const id = e.toolCallId || `${e.toolName || "tool"}#${anonymous++}`;
+          const call = byId.get(id) || { id };
+          if (e.toolName) call.name = e.toolName;
+          if (e.toolCategory) call.category = e.toolCategory;
+          if (e.status && (call.status === void 0 || toolStatusRank(e.status) >= toolStatusRank(call.status))) {
+            call.status = e.status;
+          }
+          const params = e.filledParameters;
+          if (params && typeof params === "object" && !Array.isArray(params) && Object.keys(params).length) {
+            call.filledParameters = e.filledParameters;
+          }
+          if (Array.isArray(e.unfilledParameters)) call.unfilledParameters = e.unfilledParameters;
+          if (typeof e.durationMs === "number") call.durationMs = e.durationMs;
+          if (e.result !== void 0 && e.result !== null) {
+            const r = typeof e.result === "string" ? e.result : JSON.stringify(e.result);
+            if (r.length > MAX_TOOL_RESULT_CHARS) {
+              call.result = r.slice(0, MAX_TOOL_RESULT_CHARS);
+              call.resultTruncated = true;
+              call.resultLength = r.length;
+            } else {
+              call.result = r;
+            }
+          }
+          const error = e.error ?? e.errorMessage;
+          if (error !== void 0 && error !== null && error !== "") call.error = error;
+          byId.set(id, call);
+        }
+      }
+      return [...byId.values()];
+    }
     function finalText(activities) {
       const msg = (activities || []).filter((a) => a.type === "message" && a.text).pop();
       if (msg) return msg.text;
@@ -37125,6 +37163,7 @@ var require_response_format = __commonJS({
         greeting,
         reasoning: collectReasoning(activities),
         steps: collectSteps(activities),
+        tool_calls: collectToolCalls(activities),
         text: finalText(activities),
         attachments
       };
@@ -37134,6 +37173,8 @@ var require_response_format = __commonJS({
       // exported for reuse / testing
       collectReasoning,
       collectSteps,
+      collectToolCalls,
+      MAX_TOOL_RESULT_CHARS,
       finalText,
       materializeAttachments,
       decodeDataUrl
@@ -37251,6 +37292,16 @@ var require_terminal_render = __commonJS({
           for (const a of summary.attachments) {
             const meta = [a.contentType, humanBytes(a.bytes)].filter(Boolean).join(", ");
             w(dim("  \u{1F4CE} ") + (a.path || a.url) + (meta ? dim("  (" + meta + ")") : ""));
+          }
+        }
+        if (summary.tool_calls && summary.tool_calls.length) {
+          w("\n" + dim("tool calls:"));
+          for (const c of summary.tool_calls) {
+            const meta = [c.status, c.durationMs != null ? c.durationMs + " ms" : null].filter(Boolean).join(", ");
+            let input = JSON.stringify(c.filledParameters || {});
+            if (input.length > 300) input = input.slice(0, 300) + "\u2026";
+            w(dim("  \u2699 ") + c.name + dim("  (" + meta + ")  in: " + input));
+            if (c.error) w(dim("    error: " + (typeof c.error === "string" ? c.error : JSON.stringify(c.error))));
           }
         }
         w("");
@@ -37847,6 +37898,7 @@ async function main() {
           greeting: summary.greeting,
           reasoning: summary.reasoning,
           steps: summary.steps,
+          tool_calls: summary.tool_calls,
           text: summary.text,
           attachments: summary.attachments,
           activity_count: result.activities.length

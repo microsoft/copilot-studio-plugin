@@ -25,7 +25,8 @@
  *   node chat-with-agent.bundle.js --raw "hello"                            (full activity dump)
  *
  * Output (stdout): by default a distilled JSON summary of the turn — { conversation_id, greeting,
- *   reasoning[], steps[] (tool/status cues), text (final answer), attachments[] }. Attachments the
+ *   reasoning[], steps[] (tool/status cues), tool_calls[] (tool name, parameters, result,
+ *   status, duration), text (final answer), attachments[] }. Attachments the
  *   agent produces are materialized to disk (<pluginData>/chat-attachments/<conversationId>/) and
  *   only their file paths are returned, so large images never bloat the caller's context. Use
  *   --raw for the full activity payloads, or --pretty for a colorized live terminal experience.
@@ -794,6 +795,7 @@ async function main() {
           greeting: summary.greeting,
           reasoning: summary.reasoning,
           steps: summary.steps,
+          tool_calls: summary.tool_calls,
           text: summary.text,
           attachments: summary.attachments,
           activity_count: result.activities.length,

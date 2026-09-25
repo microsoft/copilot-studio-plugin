@@ -4,8 +4,8 @@
  * Only used when `--pretty` is passed (or stdout is a TTY). It renders, as the turn streams:
  *   - reasoning (chain-of-thought) as dim cyan lines
  *   - tool/status cues ("Running Bash...") as dim chips
- * then, at the end of the turn, the final answer with lightweight Markdown -> ANSI styling
- * and a list of any materialized attachment files.
+ * then, at the end of the turn, the final answer with lightweight Markdown -> ANSI styling,
+ * a list of any materialized attachment files, and the tool calls with their inputs.
  *
  * The default (machine) output path does NOT use this — it emits distilled JSON instead.
  */
@@ -140,6 +140,18 @@ function createLiveRenderer({ out = process.stdout } = {}) {
       for (const a of summary.attachments) {
         const meta = [a.contentType, humanBytes(a.bytes)].filter(Boolean).join(", ");
         w(dim("  📎 ") + (a.path || a.url) + (meta ? dim("  (" + meta + ")") : ""));
+      }
+    }
+    if (summary.tool_calls && summary.tool_calls.length) {
+      w("\n" + dim("tool calls:"));
+      for (const c of summary.tool_calls) {
+        const meta = [c.status, c.durationMs != null ? c.durationMs + " ms" : null]
+          .filter(Boolean)
+          .join(", ");
+        let input = JSON.stringify(c.filledParameters || {});
+        if (input.length > 300) input = input.slice(0, 300) + "…";
+        w(dim("  ⚙ ") + c.name + dim("  (" + meta + ")  in: " + input));
+        if (c.error) w(dim("    error: " + (typeof c.error === "string" ? c.error : JSON.stringify(c.error))));
       }
     }
     w("");
