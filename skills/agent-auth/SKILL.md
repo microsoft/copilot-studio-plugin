@@ -51,7 +51,9 @@ user wants to do.
 
 - "who am I", "am I signed in", "status" → **Status**
 - "sign in", "log in", "authenticate" → **Login**
-- "switch account/tenant" → **Switch**
+- "switch account" → **Switch**
+- "switch tenant" → **Switch** only when the user identifies a cached account in that tenant;
+  otherwise use **Login** with `--tenant`
 - "sign out", "log out" → **Logout**
 - an environment id/name, "use environment…", "select environment" → **Select environment**
 - "list environments" → **List environments**
@@ -59,7 +61,7 @@ user wants to do.
 ## 3. Status (read-only, never acquires a token)
 
 ```bash
-msagent auth status --json
+msagent auth status --json --non-interactive
 ```
 
 Envelope: `{ success, status, signedIn, account, tenantId, environmentId, environmentDisplayName,
@@ -77,16 +79,21 @@ msagent auth login
 ```
 
 To sign in to a specific tenant, add `--tenant '<tenantId>'`. After the user finishes, run
-`msagent auth status --json` and report the resulting account and environment.
+`msagent auth status --json --non-interactive` and report the resulting account and environment.
 
 ## 5. Switch account
 
+`msagent auth switch` requires the cached account to activate. Ask the user for its UPN/email or
+home-account id, validate and quote it as text, then run:
+
 ```bash
-msagent auth switch
+msagent auth switch --account '<account>' --json --non-interactive
 ```
 
-This never acquires a token; it selects among already-cached accounts. Follow with
-`msagent auth status --json` and report the active account.
+This never acquires a token; it selects only among already-cached accounts. Follow with
+`msagent auth status --json --non-interactive` and report the active account. If the user wants a
+tenant for which no cached account exists, do not call `switch`; use
+`msagent auth login --tenant '<tenantId>'` instead.
 
 ## 6. Logout (blocking confirmation)
 
@@ -94,7 +101,7 @@ Signing out clears cached accounts. Confirm with the user first ("This signs you
 clears cached accounts. Proceed?"). On explicit yes:
 
 ```bash
-msagent auth logout
+msagent auth logout --json --non-interactive
 ```
 
 ## 7. Environments
@@ -102,20 +109,22 @@ msagent auth logout
 List the environments the signed-in account can reach:
 
 ```bash
-msagent env list --json
+msagent env list --json --non-interactive
 ```
 
 Envelope: `{ success, status, environments: [{ environmentId, displayName, tenantId, apiEndpoint,
 isActive }] }`. Present them as a table and mark the `isActive` one. If the user named an environment
-by display name, resolve it to its `environmentId` here.
+by display name, require exactly one case-insensitive match. If several environments have that
+display name, present their ids and tenants and ask the user to choose an exact `environmentId`.
 
 Select the active environment for later commands:
 
 ```bash
-msagent env select '<environment-id>'
+msagent env select '<environment-id>' --json --non-interactive
 ```
 
-Confirm the newly active environment with `msagent env list --json` (or `auth status --json`).
+Confirm the newly active environment with `msagent env list --json --non-interactive` (or
+`msagent auth status --json --non-interactive`).
 
 ## 8. Report
 
@@ -130,4 +139,5 @@ they can now retry it.
 - `msagent auth status`, `switch`, and `logout` never open identity UI. Only `login` does. If a
   non-interactive context blocks the browser, tell the user to run `msagent auth login` themselves.
 - If `env select` reports the environment is not found or not available to the account, relay the
-  remediation and offer to run `msagent env list --json` so the user can pick a reachable one.
+  remediation and offer to run `msagent env list --json --non-interactive` so the user can pick a
+  reachable one.

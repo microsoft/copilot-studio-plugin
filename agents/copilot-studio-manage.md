@@ -114,7 +114,7 @@ pac copilot pull --project-dir "<path-to-agent-folder>"
 pac copilot push --project-dir "<path-to-agent-folder>"
 ```
 
-If push reports a conflict or asks you to pull first, run pull again, resolve any resulting file conflicts with the user, then retry push. If push reports no local changes, treat it as a no-op and do not publish unless the user explicitly asks to publish the already-current agent.
+If push reports a conflict or asks you to pull first, run pull again, resolve any resulting file conflicts with the user, then retry push. If push reports no local changes, treat it as a no-op and report that outcome. This internal migration helper never publishes.
 
 #### Clone (download agent to a new local folder)
 

@@ -45,21 +45,34 @@ If it is not found, tell the user the msagent CLI is required but was not found,
 
 ## 2. Resolve inputs (blocking)
 
-1. **Source agent** — one of:
+1. **Source environment** — resolve `--mcs-clone-environment-id '<srcEnv>'` before resolving the
+   source agent. If the user supplied an environment display name, run
+   `msagent env list --json --non-interactive`, require exactly one case-insensitive match, and use
+   its `environmentId`. If no source environment was supplied, run
+   `msagent auth status --json --non-interactive`, show the active environment, and require the user
+   to confirm it. Never silently substitute the active environment.
+2. **Source agent** — one of:
    - `--mcs-clone-agent-id '<id>'` (a GUID), or
    - `--mcs-clone-agent-schemaname '<schemaName>'`.
 
-   If the user gives an agent **display name**, resolve it first with `msagent agent list --json`
-   (match `displayName`, then use its `mcsAgentId` or `schemaName`) and confirm the match. If the
-   user pastes a Copilot Studio web URL containing `/environments/<environmentId>/bots/<botId>/`,
-   take `<botId>` as the clone-source id and `<environmentId>` as the source environment.
-2. **Source environment** — `--mcs-clone-environment-id '<srcEnv>'`. It defaults to the target
-   environment, then the active environment. Confirm which environment holds the source agent.
-3. **Target project directory** — `--project '<dir>'`. It is created if missing. Refuse to clone into
-   a folder that already contains a registered project (`.config\agent.config.json`) or agent files
-   (`settings.mcs.yml`); ask for an empty/new folder instead.
-4. **Target environment** (optional) — `--environment-id '<targetEnv>'`, where the clone is created.
-   Defaults to the active environment. Confirm; it is often the same as the source environment.
+   If the user gives an agent **display name**, resolve it in the source environment:
+
+   ```bash
+   msagent agent list --environment-id '<srcEnv>' --json --non-interactive
+   ```
+
+   Require exactly one case-insensitive `displayName` match, then use its `mcsAgentId` or
+   `schemaName`. If several agents have that display name, present their ids and schema names and
+   require an exact choice; if none match, stop. If the user pastes a Copilot Studio web URL
+   containing `/environments/<environmentId>/bots/<botId>/`, take `<botId>` as the clone-source id
+   and `<environmentId>` as the source environment.
+3. **Target project directory** — `--project '<dir>'`. It is created if missing. Require the target
+   to be absent or empty; refuse to clone into a folder containing a registered project, agent
+   files, or unrelated files. Ask for a new/empty folder rather than risking a merge or overwrite.
+4. **Target environment** — resolve an exact `environmentId` and always pass it as
+   `--environment-id '<targetEnv>'`. If the user does not name one, get the active environment from
+   `msagent auth status --json --non-interactive`, show it, and require confirmation. It is often the
+   same as the source environment, but do not assume that.
 
 ## 3. Confirm the plan (blocking)
 
@@ -69,19 +82,18 @@ Because this creates a new agent seeded from the source, show a short summary an
 About to clone:
   source agent   <id-or-schemaName> in <srcEnv>
   into project   <dir>
-  target env     <targetEnv or active environment>
+  target env     <targetEnv>
 The new project inherits the source agent's display name and is registered with msagent.
 ```
 
 ## 4. Run the clone
 
 ```bash
-msagent agent create --project '<dir>' --agent-type MCSAgent --mcs-clone-agent-id '<id>' --mcs-clone-environment-id '<srcEnv>' --json --non-interactive
+msagent agent create --project '<dir>' --agent-type MCSAgent --mcs-clone-agent-id '<id>' --mcs-clone-environment-id '<srcEnv>' --environment-id '<targetEnv>' --json --non-interactive
 ```
 
 - Use `--mcs-clone-agent-schemaname '<schemaName>'` instead of `--mcs-clone-agent-id` when you only
   have the schema name.
-- Add `--environment-id '<targetEnv>'` only when the target differs from the default.
 - Do **not** pass `--name`: a clone inherits the source agent's name.
 
 ## 5. Verify and report
@@ -100,7 +112,11 @@ user:
 - Failure envelope: `{ success: false, exitCode, errorMessage, errorKind?, remediation? }`. Surface
   `errorMessage` and `remediation`.
 - **`exitCode` 3, or a sign-in error:** not signed in and `--non-interactive` blocked a prompt. Offer
-  the `agent-auth` skill (or `msagent auth login`), then re-run the same command once.
+  the `agent-auth` skill (or `msagent auth login`). After the user completes login, run
+  `msagent auth status --json --non-interactive`. Compare its account, tenant, and environment with
+  the confirmed source and target. If any security context changed, show the changes and re-confirm
+  the full clone plan before re-running the same command once.
 - **Destination not empty / already a project:** do not overwrite. Ask for a new folder.
-- **Source not found / environment not found:** relay the remediation; offer `msagent agent list --json`
-  (to reconfirm the source) or `msagent env list --json` (to reconfirm the environment).
+- **Source not found / environment not found:** relay the remediation; offer
+  `msagent agent list --environment-id '<srcEnv>' --json --non-interactive` (to reconfirm the
+  source) or `msagent env list --json --non-interactive` (to reconfirm the environment).

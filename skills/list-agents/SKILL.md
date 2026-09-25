@@ -39,8 +39,9 @@ If it is not found, tell the user the msagent CLI is required but was not found,
 
 - **Default:** the signed-in account's **active** environment. Do not pass `--environment-id`.
 - **A specific environment:** if the user names an environment by id, use it. If by display name,
-  resolve it first with `msagent env list --json` (envelope
-  `{ environments: [{ environmentId, displayName, isActive }] }`) and confirm the match.
+  resolve it first with `msagent env list --json --non-interactive` (envelope
+  `{ environments: [{ environmentId, displayName, isActive }] }`). Require exactly one
+  case-insensitive match; if several match, ask for the exact `environmentId`.
 - **Tenant-wide:** if the user asks for every environment, use `--tenant-wide`.
 - **Limit:** default is 20 rows. Pass `--limit '<n>'` only if the user asks for a different count.
 
@@ -71,7 +72,8 @@ appear.
 - Failure envelope: `{ success: false, exitCode, errorMessage, errorKind?, remediation? }`. Surface
   `errorMessage` and `remediation`.
 - **`exitCode` 3, or a sign-in error:** the session is not signed in and `--non-interactive`
-  prevented a prompt. Offer the `agent-auth` skill (or `msagent auth login`); after the user signs
-  in, re-run the same list command once.
-- **Environment not found / not available:** relay the remediation and offer `msagent env list --json`
-  so the user can pick a reachable environment.
+  prevented a prompt. Offer the `agent-auth` skill (or `msagent auth login`). After the user signs
+  in, run `msagent auth status --json --non-interactive`; if the original command used the active
+  environment and it changed, show the new scope before re-running the list once.
+- **Environment not found / not available:** relay the remediation and offer
+  `msagent env list --json --non-interactive` so the user can pick a reachable environment.
