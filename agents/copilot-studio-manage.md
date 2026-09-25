@@ -133,13 +133,15 @@ pac copilot publish --bot "<bot-id-or-schema-name>" --environment "<environment-
 
 In a workspace, the pull in this sequence also refreshes `publishedOn` in `settings.mcs.yml`. Note its value before running publish. It is absent if the agent was never published.
 
-`pac copilot publish` can exit with a non-zero code and `Exception Type: System.ArgumentException`, logged as `Invalid response format (Parameter 'rawResponse')`. This is a known PAC issue (https://github.com/microsoft/powerplatform-build-tools/issues/1307): PAC crashes while polling the publish status, and the publish has been observed to complete anyway.
+`pac copilot publish` can crash with "Sorry, the app encountered a non-recoverable error" and `Exception Type: System.ArgumentException` (logged as `Invalid response format (Parameter 'rawResponse')`), exiting with a non-zero code. This is a known PAC issue (https://github.com/microsoft/powerplatform-build-tools/issues/1307): PAC crashes while polling the publish status, and the publish has been observed to complete anyway.
 
-When that happens, do not report the publish as failed or as successful yet, and do not re-run publish. Tell the user that PAC crashed while checking the publish status, then:
+When PAC crashes this way, do not report the publish as failed or as successful yet, and do not re-run publish. Tell the user that PAC crashed while checking the publish status, then:
 
 1. Run `pac copilot pull --project-dir "<path-to-agent-folder>"` and compare `publishedOn` in `settings.mcs.yml` with the value from before. If it appeared or moved to a newer time, the publish completed.
 2. If it did not change, the publish may still be running. Offer one more pull after the user confirms. If `publishedOn` still has not changed, tell the user to check the agent's publish status in Copilot Studio. Do not keep polling and do not use `pac copilot status`.
 3. If there is no local workspace, you cannot check. Report the crash, link the PAC issue above, and ask the user to check the publish status in Copilot Studio.
+
+This applies only to that crash. A wrong bot or environment value does not crash PAC: it prints an ordinary `Error:` line such as `No bots were found using search pattern ...` or `The value passed to '--environment' is invalid`. Handle those as a failed publish (see Error Handling).
 
 Publishing writes `publishedOn` to the remote agent, so a push after any publish reports a conflict unless you pull first (rule 2).
 
@@ -176,7 +178,7 @@ PAC commands generally write human-readable text or tables rather than the old s
 | Push asks to pull first or reports conflicts | Remote and local content both changed | Run pull, resolve resulting file conflicts with the user, then push again. |
 | Any PAC command prints "Sorry, the app encountered a non-recoverable error" | PAC crashed; the console shows only the exception type | See PAC crash diagnostics below. |
 | Pull ends with `System.FormatException` | Usually a workspace created by `pac copilot init` that was not pulled before the remote agent changed | See Pull crashes on a never-pulled init workspace below. |
-| Publish ends with `System.ArgumentException` | PAC crashed while polling the publish status. The publish has been observed to complete anyway. | Follow the steps under Publish. Do not retry publish. |
+| Publish crashes ("non-recoverable error") with `Exception Type: System.ArgumentException` | PAC crashed while polling the publish status. The publish has been observed to complete anyway. | Follow the steps under Publish. Do not retry publish. |
 | Push ends with `YamlDotNet.Core.SemanticErrorException` | A YAML file in the workspace does not parse. PAC does not name the file. | Use PAC crash diagnostics below to get the line and column from the log. Look for that position in the files the user edited (or `git diff` if the workspace is in git). A common cause is an unquoted value containing `": "`, for example a `description` in `workflows/<name>-<id>/metadata.yml`. Quote the value. |
 | Push crashes and the PAC log shows `Entity 'Workflow' With Id = ... Does Not Exist` | A `WorkflowTool` points at a `workflowId` that is not in the environment | Ask the user for the correct flow. The tool needs the Dataverse `workflowid` of the flow. |
 | Publish fails (other than the `ArgumentException` above) | Insufficient permissions, wrong environment, or wrong bot ID/schema name | Verify permissions, environment, and bot identifier, then retry. |

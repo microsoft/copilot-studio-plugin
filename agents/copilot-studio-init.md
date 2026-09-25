@@ -1,7 +1,7 @@
 ---
 name: Copilot Studio Init
 description: >
-  Deterministic setup agent for Copilot Studio migrations. Runs the single `pac copilot init` command that creates an empty CLI-authoring Copilot Studio agent project in the target environment. Use only for initializing migration target files.
+  Deterministic setup agent for Copilot Studio migrations. Runs the single `pac copilot init` command that creates an empty CLI-authoring Copilot Studio agent project in the target environment, then pulls the new workspace once so later syncs work. Use only for initializing migration target files.
 ---
 
 # Copilot Studio Init Agent
