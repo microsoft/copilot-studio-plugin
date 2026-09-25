@@ -161,7 +161,7 @@ Knowledge components live in `capabilities\knowledge\` (source-backed sources) a
 The **authoritative knowledge-source schema** — every source kind (public website, SharePoint,
 OneDrive, uploaded file), the exact YAML shapes and fields, `targetKind` rules, filename conventions,
 and SharePoint/OneDrive URL normalization — lives in a single shared reference,
-`reference/knowledge-schema.md`. Read it and follow it exactly; the `/add-knowledge` command uses the
+`reference/knowledge-schema.md`. Read it and follow it exactly; the `add-knowledge` skill uses the
 same file, so the two never drift. Resolve its path via the plugin root: read
 `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` for the
 current `mcs-assistant` plugin, then read `path.join(pluginRoot, 'reference', 'knowledge-schema.md')`.
@@ -201,7 +201,7 @@ procedures.
 The **authoritative skill schema** — the inline and upload variants, the exact YAML shapes and
 fields, the `behaviors/` file layout, anchor/sidecar rules, folder naming, and schema-name
 conventions — lives in a single shared reference, `reference/skill-schema.md`. Read it and follow it
-exactly; the `/add-skill` command and its importer use the same file, so the three never drift.
+exactly; the `add-skill` skill and its importer use the same file, so the three never drift.
 Resolve its path via the plugin root: read
 `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` for the
 current `mcs-assistant` plugin, then read `path.join(pluginRoot, 'reference', 'skill-schema.md')`.

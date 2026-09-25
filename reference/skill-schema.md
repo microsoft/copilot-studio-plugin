@@ -1,7 +1,7 @@
 # Agent Skill Schema (authoritative)
 
 **Single source of truth** for how agent skills are represented in a modern Copilot Studio
-**CLI agentic-loop** agent (`behaviors/`). The `/add-skill` command, the `scripts/add-skill.js`
+**CLI agentic-loop** agent (`behaviors/`). The `add-skill` skill, the `scripts/add-skill.js`
 importer, and the `copilot-studio-architect` agent all consult this file — edit the schema **here
 only** so the three never drift.
 
@@ -30,12 +30,12 @@ A skill is always `kind: InlineAgentSkill`, but it is materialized in one of two
 | Variant | Where the skill text lives | Marker | Emitted by |
 |---|---|---|---|
 | **Inline** | Embedded in the component's `content:` block | no `authoringSource` | `copilot-studio-architect` when authoring a new skill from an idea |
-| **Upload** | A real `SKILL.md` file on disk, plus optional payload files | `authoringSource: Upload` | `/add-skill` import (`scripts/add-skill.js`), and a portal upload |
+| **Upload** | A real `SKILL.md` file on disk, plus optional payload files | `authoringSource: Upload` | `add-skill` skill import (`scripts/add-skill.js`), and a portal upload |
 
 > **Open question — variant selection.** The platform accepts both, but there is currently no
 > documented rule for *when* an author should prefer one over the other, and no verified statement
 > that they are functionally equivalent at runtime. Until that is confirmed, keep using the variant
-> each producer already emits (architect → inline; `/add-skill` → upload) and do not convert between
+> each producer already emits (architect → inline; `add-skill` → upload) and do not convert between
 > them. Resolve this before relying on cross-variant behavior.
 
 ## File layout
