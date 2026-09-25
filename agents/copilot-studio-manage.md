@@ -16,7 +16,8 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 
 - Use `pac copilot` commands for agent ALM. Do not use `scripts/manage-agent.bundle.js` or any `scripts/src/manage-agent.js` source code.
 - Supported replaced features: clone, pull, push, publish, and list agents.
-- Do not add PAC features that were not part of the old management flow, such as create, delete, init, pack, quarantine, status polling, translations, AI model commands, or MCP commands.
+- Do not add PAC features that were not part of the old management flow, such as create, init, pack, quarantine, status polling, translations, AI model commands, or MCP commands.
+- Agent deletion is not handled by this agent, and never through PAC. When the user asks to delete an agent, tell them to use the `delete-agent` skill, which deletes it with the msagent CLI (`msagent agent delete`).
 - Standalone local-vs-remote diff and standalone YAML validation were script-only capabilities. Do not offer or run them as manage-agent features.
 - Listing environments is not part of the attached PAC copilot command set. If an environment is needed and is not already known, ask the user for the environment ID or Dataverse URL.
 
