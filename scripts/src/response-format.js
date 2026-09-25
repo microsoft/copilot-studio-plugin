@@ -81,6 +81,7 @@ const toolStatusRank = (status) => (status === "started" ? 0 : 1);
 // own record rather than being merged with an unrelated call.
 function collectToolCalls(activities) {
   const byId = new Map();
+  const present = (v) => v !== undefined && v !== null && v !== "";
   let anonymous = 0;
   for (const a of activities || []) {
     for (const e of a.entities || []) {
@@ -90,21 +91,31 @@ function collectToolCalls(activities) {
       const id = e.toolCallId || `anon:${e.toolName || "tool"}#${anonymous}`;
       if (!e.toolCallId) anonymous++;
       const call = byId.get(key) || { id };
-      if (e.toolName) call.name = e.toolName;
-      if (e.toolCategory) call.category = e.toolCategory;
-      if (
-        e.status &&
-        (call.status === undefined || toolStatusRank(e.status) >= toolStatusRank(call.status))
-      ) {
+      // An entity from an earlier phase than the record's current status (a repeated
+      // "started" after "completed") must not overwrite anything; it may only fill gaps.
+      const stale =
+        e.status !== undefined &&
+        call.status !== undefined &&
+        toolStatusRank(e.status) < toolStatusRank(call.status);
+      const set = (field, value) => {
+        if (!stale || call[field] === undefined) call[field] = value;
+      };
+      if (e.toolName) set("name", e.toolName);
+      if (e.toolCategory) set("category", e.toolCategory);
+      if (e.status && !stale && e.status !== call.status) {
         call.status = e.status;
+        // An error belongs to the status it came with; keep it only if this entity repeats it.
+        delete call.error;
       }
+      // An empty object means "nothing filled yet", so it must not erase real values; an empty
+      // unfilledParameters list means "all filled now", so it does replace the earlier list.
       const params = e.filledParameters;
       if (params && typeof params === "object" && !Array.isArray(params) && Object.keys(params).length) {
-        call.filledParameters = e.filledParameters;
+        set("filledParameters", params);
       }
-      if (Array.isArray(e.unfilledParameters)) call.unfilledParameters = e.unfilledParameters;
-      if (typeof e.durationMs === "number") call.durationMs = e.durationMs;
-      if (e.result !== undefined && e.result !== null) {
+      if (Array.isArray(e.unfilledParameters)) set("unfilledParameters", e.unfilledParameters);
+      if (typeof e.durationMs === "number") set("durationMs", e.durationMs);
+      if (!stale && e.result !== undefined && e.result !== null) {
         const r = typeof e.result === "string" ? e.result : JSON.stringify(e.result);
         if (r.length > MAX_TOOL_RESULT_CHARS) {
           call.result = r.slice(0, MAX_TOOL_RESULT_CHARS);
@@ -112,11 +123,12 @@ function collectToolCalls(activities) {
           call.resultLength = r.length;
         } else {
           call.result = r;
+          delete call.resultTruncated;
+          delete call.resultLength;
         }
       }
-      const present = (v) => v !== undefined && v !== null && v !== "";
       const error = present(e.error) ? e.error : e.errorMessage;
-      if (present(error)) call.error = error;
+      if (present(error) && (!stale || call.error === undefined)) call.error = error;
       byId.set(key, call);
     }
   }

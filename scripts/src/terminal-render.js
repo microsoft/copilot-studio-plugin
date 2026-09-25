@@ -150,7 +150,7 @@ function createLiveRenderer({ out = process.stdout } = {}) {
           .join(", ");
         let input = JSON.stringify(c.filledParameters || {});
         if (input.length > 300) input = input.slice(0, 300) + "…";
-        w(dim("  ⚙ ") + c.name + dim("  (" + meta + ")  in: " + input));
+        w(dim("  ⚙ ") + (c.name || c.id) + (meta ? dim("  (" + meta + ")") : "") + dim("  in: " + input));
         if (c.error) w(dim("    error: " + (typeof c.error === "string" ? c.error : JSON.stringify(c.error))));
       }
     }

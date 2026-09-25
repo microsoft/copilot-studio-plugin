@@ -147,14 +147,15 @@ Present it to the user like a chat client would:
 - `steps` — tool/status cues such as `"Running Bash..."`. Show them as lightweight progress/tool
   indicators, separate from both reasoning and the answer.
 - `tool_calls` — one record per tool call: `{ id, name, category, status, filledParameters,
-  unfilledParameters, durationMs, result, error }`. The parameter and result field names follow the
-  runtime's `toolCall` entity, so they match `--raw`. `filledParameters` are the values the model sent. `result` is the
-  tool output as a string (JSON-stringified if the runtime sent an object), cut at 2000 characters
-  with `resultTruncated: true` and the full `resultLength`. `error` is only present if the runtime
-  sent one. Use these when the user is debugging a tool: show what was sent and what came back.
-  Don't dump full results by default; they can contain business data. A flow that failed can still
-  show up as `completed` with an empty result, so when a flow tool's result looks wrong or empty,
-  suggest checking that flow's run history.
+  unfilledParameters, durationMs, result, error }`. The parameter and result field names follow
+  the runtime's `toolCall` entity, so they match `--raw`. `id` is the runtime's `toolCallId`, or
+  `anon:<name>#<n>` when the runtime sent none. `filledParameters` are the values the model sent.
+  `result` is the tool output as a string (JSON-stringified if the runtime sent an object), cut at
+  2000 characters with `resultTruncated: true` and the full `resultLength`. `error` is only present
+  if the runtime sent one. Use these when the user is debugging a tool: show what was sent and what
+  came back. Don't dump full results by default; they can contain business data. A flow that failed
+  can still show up as `completed` with an empty result such as `{}`, so when a flow tool's result
+  looks wrong or empty, suggest checking that flow's run history.
 - `attachments` — files the agent produced, already **materialized to disk**. Each has
   `{ name, contentType, bytes, path }` (or `url` for external links). Give the user the `path`; the
   base64 is never inlined, so offer to open/preview the file rather than dumping its contents.

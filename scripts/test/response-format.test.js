@@ -184,3 +184,48 @@ test("an empty error does not hide a non-empty errorMessage", () => {
   });
   assert.equal(collectToolCalls([both])[0].error, "Flow run failed");
 });
+
+test("a later short result clears the truncation fields", () => {
+  const long = toolActivity("GetPurchaseStatus completed", { status: "completed", result: "x".repeat(5000) });
+  const short = toolActivity("GetPurchaseStatus completed", { status: "completed", result: "ok" });
+  const [call] = collectToolCalls([long, short]);
+  assert.equal(call.result, "ok");
+  assert.equal(call.resultTruncated, undefined);
+  assert.equal(call.resultLength, undefined);
+});
+
+test("a repeated started entity does not revert the parameters", () => {
+  const filled = toolActivity("GetPurchaseStatus completed", {
+    status: "completed",
+    filledParameters: { prNumber: "PR-1042", ticketId: "T-7" },
+    unfilledParameters: [],
+    result: "ok",
+  });
+  const [call] = collectToolCalls([started, filled, started]);
+  assert.deepEqual(call.filledParameters, { prNumber: "PR-1042", ticketId: "T-7" });
+  assert.deepEqual(call.unfilledParameters, []);
+});
+
+test("an error is dropped when a later entity moves the call to a new status without one", () => {
+  const failed = toolActivity("GetPurchaseStatus failed", { status: "failed", error: "boom" });
+  const done = toolActivity("GetPurchaseStatus completed", { status: "completed", result: "ok" });
+  assert.equal(collectToolCalls([started, failed, done])[0].error, undefined);
+});
+
+test("a non-empty error wins over errorMessage", () => {
+  const both = toolActivity("GetPurchaseStatus failed", {
+    status: "failed",
+    error: "boom",
+    errorMessage: "other",
+  });
+  assert.equal(collectToolCalls([both])[0].error, "boom");
+});
+
+test("anonymous calls get an anon: id with the tool name", () => {
+  const anon = { type: "typing", entities: [{ type: "toolCall", toolName: "Lookup", status: "started" }] };
+  const nameless = { type: "typing", entities: [{ type: "toolCall", status: "started" }] };
+  assert.deepEqual(
+    collectToolCalls([anon, nameless]).map((c) => c.id),
+    ["anon:Lookup#0", "anon:tool#1"]
+  );
+});

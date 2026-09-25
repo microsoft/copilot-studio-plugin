@@ -37033,6 +37033,7 @@ var require_response_format = __commonJS({
     var toolStatusRank = (status) => status === "started" ? 0 : 1;
     function collectToolCalls(activities) {
       const byId = /* @__PURE__ */ new Map();
+      const present = (v) => v !== void 0 && v !== null && v !== "";
       let anonymous = 0;
       for (const a of activities || []) {
         for (const e of a.entities || []) {
@@ -37041,18 +37042,23 @@ var require_response_format = __commonJS({
           const id = e.toolCallId || `anon:${e.toolName || "tool"}#${anonymous}`;
           if (!e.toolCallId) anonymous++;
           const call = byId.get(key) || { id };
-          if (e.toolName) call.name = e.toolName;
-          if (e.toolCategory) call.category = e.toolCategory;
-          if (e.status && (call.status === void 0 || toolStatusRank(e.status) >= toolStatusRank(call.status))) {
+          const stale = e.status !== void 0 && call.status !== void 0 && toolStatusRank(e.status) < toolStatusRank(call.status);
+          const set = (field, value) => {
+            if (!stale || call[field] === void 0) call[field] = value;
+          };
+          if (e.toolName) set("name", e.toolName);
+          if (e.toolCategory) set("category", e.toolCategory);
+          if (e.status && !stale && e.status !== call.status) {
             call.status = e.status;
+            delete call.error;
           }
           const params = e.filledParameters;
           if (params && typeof params === "object" && !Array.isArray(params) && Object.keys(params).length) {
-            call.filledParameters = e.filledParameters;
+            set("filledParameters", params);
           }
-          if (Array.isArray(e.unfilledParameters)) call.unfilledParameters = e.unfilledParameters;
-          if (typeof e.durationMs === "number") call.durationMs = e.durationMs;
-          if (e.result !== void 0 && e.result !== null) {
+          if (Array.isArray(e.unfilledParameters)) set("unfilledParameters", e.unfilledParameters);
+          if (typeof e.durationMs === "number") set("durationMs", e.durationMs);
+          if (!stale && e.result !== void 0 && e.result !== null) {
             const r = typeof e.result === "string" ? e.result : JSON.stringify(e.result);
             if (r.length > MAX_TOOL_RESULT_CHARS) {
               call.result = r.slice(0, MAX_TOOL_RESULT_CHARS);
@@ -37060,11 +37066,12 @@ var require_response_format = __commonJS({
               call.resultLength = r.length;
             } else {
               call.result = r;
+              delete call.resultTruncated;
+              delete call.resultLength;
             }
           }
-          const present = (v) => v !== void 0 && v !== null && v !== "";
           const error = present(e.error) ? e.error : e.errorMessage;
-          if (present(error)) call.error = error;
+          if (present(error) && (!stale || call.error === void 0)) call.error = error;
           byId.set(key, call);
         }
       }
@@ -37303,7 +37310,7 @@ var require_terminal_render = __commonJS({
             const meta = [c.status, c.durationMs != null ? c.durationMs + " ms" : null].filter(Boolean).join(", ");
             let input = JSON.stringify(c.filledParameters || {});
             if (input.length > 300) input = input.slice(0, 300) + "\u2026";
-            w(dim("  \u2699 ") + c.name + dim("  (" + meta + ")  in: " + input));
+            w(dim("  \u2699 ") + (c.name || c.id) + (meta ? dim("  (" + meta + ")") : "") + dim("  in: " + input));
             if (c.error) w(dim("    error: " + (typeof c.error === "string" ? c.error : JSON.stringify(c.error))));
           }
         }
