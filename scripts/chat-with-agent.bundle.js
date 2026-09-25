@@ -37037,8 +37037,10 @@ var require_response_format = __commonJS({
       for (const a of activities || []) {
         for (const e of a.entities || []) {
           if (e.type !== "toolCall") continue;
-          const id = e.toolCallId || `${e.toolName || "tool"}#${anonymous++}`;
-          const call = byId.get(id) || { id };
+          const key = e.toolCallId ? `id:${e.toolCallId}` : `anon:${anonymous}`;
+          const id = e.toolCallId || `anon:${e.toolName || "tool"}#${anonymous}`;
+          if (!e.toolCallId) anonymous++;
+          const call = byId.get(key) || { id };
           if (e.toolName) call.name = e.toolName;
           if (e.toolCategory) call.category = e.toolCategory;
           if (e.status && (call.status === void 0 || toolStatusRank(e.status) >= toolStatusRank(call.status))) {
@@ -37060,9 +37062,10 @@ var require_response_format = __commonJS({
               call.result = r;
             }
           }
-          const error = e.error ?? e.errorMessage;
-          if (error !== void 0 && error !== null && error !== "") call.error = error;
-          byId.set(id, call);
+          const present = (v) => v !== void 0 && v !== null && v !== "";
+          const error = present(e.error) ? e.error : e.errorMessage;
+          if (present(error)) call.error = error;
+          byId.set(key, call);
         }
       }
       return [...byId.values()];

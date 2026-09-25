@@ -164,3 +164,23 @@ test("a status the runtime adds later is not dropped after completed", () => {
   const cancelled = toolActivity("GetPurchaseStatus cancelled", { status: "cancelled" });
   assert.equal(collectToolCalls([started, completed, cancelled])[0].status, "cancelled");
 });
+
+test("an anonymous call never merges with a real id that looks like its fallback", () => {
+  const anon = { type: "typing", entities: [{ type: "toolCall", toolName: "Lookup", status: "started" }] };
+  const real = {
+    type: "typing",
+    entities: [{ type: "toolCall", toolCallId: "Lookup#0", toolName: "Lookup", status: "completed" }],
+  };
+  const calls = collectToolCalls([anon, real]);
+  assert.equal(calls.length, 2);
+  assert.notEqual(calls[0].id, calls[1].id);
+});
+
+test("an empty error does not hide a non-empty errorMessage", () => {
+  const both = toolActivity("GetPurchaseStatus failed", {
+    status: "failed",
+    error: "",
+    errorMessage: "Flow run failed",
+  });
+  assert.equal(collectToolCalls([both])[0].error, "Flow run failed");
+});
