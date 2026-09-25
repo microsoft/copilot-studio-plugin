@@ -60,7 +60,7 @@ For existing local workspaces:
 
 - Pull and push require only the project directory.
 - Publish and list agents require an environment ID or Dataverse URL.
-- Publish also requires a bot ID or schema name. Prefer a schema name or bot ID already present in the project files or user-provided context. If it is not available, ask the user.
+- Publish also requires a bot ID or schema name. Prefer a schema name or bot ID already present in the project files or user-provided context. If it is not available, ask the user. When the agent has a local workspace, publish also uses its project directory for the pull and the `publishedOn` baseline.
 
 For clone:
 
@@ -131,7 +131,7 @@ pac copilot push --project-dir "<path-to-agent-folder>"
 pac copilot publish --bot "<bot-id-or-schema-name>" --environment "<environment-id-or-dataverse-url>"
 ```
 
-If the agent has a local workspace, read `publishedOn` from its `settings.mcs.yml` before every publish, so you can tell afterwards whether the publish went through. The pull in this sequence refreshes it. It is absent if the agent was never published.
+If the agent has a local workspace, run `pac copilot pull --project-dir "<path-to-agent-folder>"` right before every publish (in the sequence above, the pull before push is that pull; do not add another one between push and publish), then read `publishedOn` from its `settings.mcs.yml`. This is the baseline for telling afterwards whether the publish went through. Don't use a value from an older pull: if someone published the agent in the meantime, a stale baseline makes a failed publish look completed. `publishedOn` is absent if the agent was never published.
 
 `pac copilot publish` can crash with "Sorry, the app encountered a non-recoverable error" and `Exception Type: System.ArgumentException` (logged as `Invalid response format (Parameter 'rawResponse')`), exiting with a non-zero code. This is a known PAC issue (https://github.com/microsoft/powerplatform-build-tools/issues/1307): PAC crashes while polling the publish status, and the publish has been observed to complete anyway.
 
@@ -199,7 +199,7 @@ To avoid this, pull once right after `pac copilot init` (the Copilot Studio Init
 
 ### PAC crash diagnostics
 
-When PAC crashes, the console shows only the exception type and a line such as `The diagnostic logs can be found at: <path>/pac-log.txt`. The log usually names the cause, or at least gives a line and column.
+When PAC crashes, the console shows only the exception type and a line such as `The diagnostic logs can be found at: <path>/pac-log.txt`. The log usually names the cause, or at least gives a line and column. PAC exits with a non-zero code both when it crashes and when it prints an ordinary `Error:` line, so the exit code only tells you the command did not finish cleanly. Read the output to tell which case it is, and for publish follow the Publish section before calling the publish itself failed. A zero exit code means the command succeeded.
 
 1. Show the user the exception type and the log path from the console output.
 2. Ask before reading the log. It can contain environment URLs, IDs, and user names.
