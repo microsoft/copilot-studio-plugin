@@ -44,7 +44,8 @@ absolute paths from then on:
 Check that `<pluginRoot>/scripts/chat-with-agent.bundle.js` exists before using it. If it doesn't, try
 the next option, then `Glob` for that file under the installed plugin directory. Use this absolute
 script path for every `node` invocation below. The script resolves its data directory
-(`<pluginData>`) itself, so you do not need to pass it in.
+(`<pluginData>`) itself, so you do not need to pass it in. If you need to look at it, it is the
+`roots[<pluginRoot>]` entry of `plugin-paths.json`, or its top-level `pluginData` when there is none.
 
 ### 2. Verify the PAC CLI prerequisite (non-blocking)
 
