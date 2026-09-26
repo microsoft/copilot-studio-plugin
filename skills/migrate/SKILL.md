@@ -58,6 +58,13 @@ Where this workflow asks the user something, use your client's structured questi
 (for example `AskUserQuestion` or `ask_user`); otherwise ask in plain text, listing the choices, and
 **stop and wait** for the answer. Never continue past an approval gate without an explicit answer.
 
+### Sandboxed clients
+
+`pac` and the plugin's scripts need network access and write outside the workspace (the PAC auth
+profile, the OS credential store, `~/.copilot-studio-cli`). If your client runs commands in a sandbox
+(for example Codex's default `workspace-write`), run them with escalated permissions the user
+approves, and tell each sub-agent to do the same.
+
 ---
 
 ## Core Process
