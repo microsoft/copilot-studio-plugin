@@ -129,6 +129,8 @@ Always pair the result with a reminder to ensure end users have access in ShareP
 node "<pluginRoot>/scripts/verify-knowledge-access.bundle.js" --agent-dir "<agentDir>" "<url>"
 ```
 
+- In a sandboxed client (for example Codex's default `workspace-write`), run it outside the sandbox
+  with escalated permissions the user approves: it needs network access and the OS credential store.
 - Add `--dry-run` to resolve the plan (encoded share id, Graph endpoint, scopes, `needsClientId`)
   **without** authenticating — useful to check setup first.
 - It reuses the same per-agent Entra **public-client app id** the `/chat` skill saves. That app

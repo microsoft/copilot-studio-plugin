@@ -83,8 +83,8 @@ about paths on the **gallery** branch until it is time to pick a destination (st
 2. Validate it exists and is a single `SKILL.md` (Markdown) or a `.zip`. If it is neither, tell the
    user what is accepted and stop.
 3. Confirm the resolved absolute path. For a `SKILL.md`, its containing folder is the `--src` for
-   import (step 5). For a `.zip`, you cannot extract it yourself - the only shell command available
-   here is the `add-skill.js` script. Ask the user to extract it and give you the path to the
+   import (step 5). For a `.zip`, don't extract it yourself - this skill only runs the `add-skill.js`
+   script. Ask the user to extract it and give you the path to the
    extracted folder (the one holding `SKILL.md`), then use that as `--src`.
 
 ## 4. Select from the gallery
@@ -196,6 +196,8 @@ Tell the user, concisely:
   `template: cliagent-<version>` value in `settings.mcs.yml`. Stop; do not retry with `--force`.
 - A GitHub tree "truncated" error, rate-limit, or network failure from `list`/`download` is
   transient - report it and offer to retry. Setting `GITHUB_TOKEN` raises the API limit for the one
-  tree call, but is not normally required.
+  tree call, but is not normally required. In a sandboxed client (for example Codex's default
+  `workspace-write`), a network failure usually means the sandbox blocks network access: rerun the
+  command with escalated permissions the user approves instead of retrying it as is.
 - If the user picks a non-skill catalog entry (a Scout automation or a legacy `.zip`), `download`
   refuses it with a clear message; relay that and suggest picking an actual skill.
