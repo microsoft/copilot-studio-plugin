@@ -46,6 +46,7 @@ const os = require("os");
 const path = require("path");
 const { PublicClientApplication } = require("@azure/msal-node");
 const { createSecureCachePlugin } = require("./secure-msal-cache");
+const { resolvePluginDataDir } = require("../plugin-data-dir");
 
 // ---------------------------------------------------------------------------
 // Output helpers
@@ -140,19 +141,6 @@ function inferCloudFromUrl(rawUrl) {
 // ---------------------------------------------------------------------------
 // Plugin data dir + saved app-registration lookup (shared with chat-with-agent)
 // ---------------------------------------------------------------------------
-
-function resolvePluginDataDir() {
-  const fromEnv = process.env.CLAUDE_PLUGIN_DATA || process.env.COPILOT_PLUGIN_DATA;
-  if (fromEnv && fromEnv.trim()) return fromEnv;
-  try {
-    const pathsFile = path.join(os.homedir(), ".copilot-studio-cli", "plugin-paths.json");
-    const parsed = JSON.parse(fs.readFileSync(pathsFile, "utf-8"));
-    if (parsed.pluginData && String(parsed.pluginData).trim()) return parsed.pluginData;
-  } catch {
-    // fall through
-  }
-  return path.join(os.homedir(), ".copilot-studio-cli");
-}
 
 // Read the per-agent / per-tenant app id saved by the chat skill's setup flow.
 function resolveClientId({ explicit, agentId, tenantId }) {

@@ -21,7 +21,24 @@ bundle skills) so the on-disk layout matches a Copilot Studio portal import. Imp
 materializes files on disk; **publishing to the cloud is done from the VS Code Copilot Studio
 extension** (Agent Changes view / sync push) afterward - this skill never pushes.
 
-Initial request: $ARGUMENTS
+Initial request: $ARGUMENTS (or, if your client does not substitute it, the user's request that
+invoked this skill)
+
+## Locate the plugin files
+
+Paths below are relative to the `mcs-assistant` plugin root (`<pluginRoot>`). Resolve it once and use
+absolute paths from then on:
+
+1. **From this skill's own location.** This file is `<pluginRoot>/skills/add-skill/SKILL.md`, so the
+   plugin root is two directories above it. Use the base directory or file path your client shows for
+   this skill.
+2. **Otherwise from `plugin-paths.json`.** Read
+   `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and use its `pluginRoot`. The
+   file is rewritten by whichever client (Claude Code, Codex, GitHub Copilot CLI) started a session
+   last, so it can point to a different installed copy of the plugin.
+
+Check that the file you need (`reference/skill-schema.md`, `scripts/add-skill.js`) exists before using it. If it doesn't, try the next option,
+then `Glob` for that file under the installed plugin directory.
 
 ## Authoritative schema — read this before importing
 
@@ -31,25 +48,15 @@ naming, and schema-name conventions live in a single shared reference —
 `scripts/add-skill.js` use the same file, so the three never drift. **Read it before step 5** and
 follow it exactly.
 
-Resolve its path via the plugin root: read
-`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` for the
-current `mcs-assistant` plugin, then read `path.join(pluginRoot, 'reference', 'skill-schema.md')`.
-If `plugin-paths.json` cannot be read, fall back to locating `reference/skill-schema.md` under the
-installed plugin directory.
+Its path is `<pluginRoot>/reference/skill-schema.md` (see "Locate the plugin files").
 
 ---
 
 ## 1. Locate the helper script (non-blocking)
 
-Resolve `scripts/add-skill.js` inside this installed plugin. In order:
-
-1. Read `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and use its
-   `pluginRoot` -> `path.join(pluginRoot, 'scripts', 'add-skill.js')`.
-2. If that file is unavailable, fall back to `${CLAUDE_PLUGIN_ROOT}/scripts/add-skill.js` when the env
-   var is set.
-3. Otherwise `Glob: **/scripts/add-skill.js` under the plugin directory.
-
-Use this absolute path for every `node` invocation below.
+The helper is `<pluginRoot>/scripts/add-skill.js`, resolved as in "Locate the plugin files" (if
+`${CLAUDE_PLUGIN_ROOT}` is set, `${CLAUDE_PLUGIN_ROOT}/scripts/add-skill.js` also works). Use this
+absolute path for every `node` invocation below.
 
 ## 2. Choose the source (blocking)
 

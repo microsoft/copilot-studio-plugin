@@ -1,4 +1,4 @@
-var _d=process.env.CLAUDE_PLUGIN_DATA;if(!_d){try{_d=JSON.parse(require('fs').readFileSync(require('path').join(require('os').homedir(),'.copilot-studio-cli','plugin-paths.json'),'utf8')).pluginData}catch{}}if(_d){var _p=require('path');process.env.NODE_PATH=[_p.join(_d,'node_modules'),process.env.NODE_PATH].filter(Boolean).join(_p.delimiter);require('module')._initPaths()}
+try{var _p=require('path'),_d=require(_p.join(__dirname,'plugin-data-dir.js')).resolvePluginDataDir();process.env.NODE_PATH=[_p.join(_d,'node_modules'),process.env.NODE_PATH].filter(Boolean).join(_p.delimiter);require('module')._initPaths()}catch{}
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -37261,6 +37261,64 @@ var require_terminal_render = __commonJS({
   }
 });
 
+// plugin-data-dir.js
+var require_plugin_data_dir = __commonJS({
+  "plugin-data-dir.js"(exports2, module2) {
+    var fs2 = require("fs");
+    var os2 = require("os");
+    var path2 = require("path");
+    var DEFAULT_PLUGIN_ROOT = path2.dirname(__dirname);
+    function pathsFilePath(homedir = os2.homedir()) {
+      return path2.join(homedir, ".copilot-studio-cli", "plugin-paths.json");
+    }
+    function realpathOrSelf(p) {
+      try {
+        return fs2.realpathSync(p);
+      } catch {
+        return path2.resolve(p);
+      }
+    }
+    function nonEmpty(value) {
+      return typeof value === "string" && value.trim() ? value : null;
+    }
+    function readPluginPaths(file) {
+      try {
+        const parsed = JSON.parse(fs2.readFileSync(file, "utf-8"));
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+      } catch {
+        return null;
+      }
+    }
+    function lookupRoot(roots, pluginRoot) {
+      if (!roots || typeof roots !== "object" || Array.isArray(roots)) return null;
+      const direct = nonEmpty(roots[pluginRoot]);
+      if (direct) return direct;
+      const wanted = realpathOrSelf(pluginRoot);
+      for (const [root, data] of Object.entries(roots)) {
+        if (nonEmpty(data) && realpathOrSelf(root) === wanted) return data;
+      }
+      return null;
+    }
+    function resolvePluginDataDir2({
+      env = process.env,
+      homedir = os2.homedir(),
+      pluginRoot = DEFAULT_PLUGIN_ROOT
+    } = {}) {
+      const fromEnv = nonEmpty(env.CLAUDE_PLUGIN_DATA) || nonEmpty(env.COPILOT_PLUGIN_DATA) || nonEmpty(env.PLUGIN_DATA);
+      if (fromEnv) return fromEnv;
+      const parsed = readPluginPaths(pathsFilePath(homedir));
+      if (parsed) {
+        const own = lookupRoot(parsed.roots, pluginRoot);
+        if (own) return own;
+        const last = nonEmpty(parsed.pluginData);
+        if (last) return last;
+      }
+      return path2.join(homedir, ".copilot-studio-cli");
+    }
+    module2.exports = { pathsFilePath, readPluginPaths, resolvePluginDataDir: resolvePluginDataDir2 };
+  }
+});
+
 // src/chat-with-agent.js
 var fs = require("fs");
 var os = require("os");
@@ -37272,6 +37330,7 @@ var { Activity } = require_src5();
 var { createCachePluginWithFallback } = require_msal_cache();
 var { summarizeTurn } = require_response_format();
 var { createLiveRenderer } = require_terminal_render();
+var { resolvePluginDataDir } = require_plugin_data_dir();
 var CLI_RECOGNIZER_KINDS = ["CLIAgentRecognizer", "CLICopilotRecognizer"];
 function log(msg) {
   process.stderr.write(msg + "\n");
@@ -37328,17 +37387,6 @@ function buildDirectConnectUrl(environmentId, schemaName, cloud) {
 function scopeForCloud(cloud) {
   const suffix = CLOUD_SUFFIX[cloud] || CLOUD_SUFFIX.Prod;
   return `https://${suffix}/.default`;
-}
-function resolvePluginDataDir() {
-  const fromEnv = process.env.CLAUDE_PLUGIN_DATA || process.env.COPILOT_PLUGIN_DATA;
-  if (fromEnv && fromEnv.trim()) return fromEnv;
-  try {
-    const pathsFile = path.join(os.homedir(), ".copilot-studio-cli", "plugin-paths.json");
-    const parsed = JSON.parse(fs.readFileSync(pathsFile, "utf-8"));
-    if (parsed.pluginData && String(parsed.pluginData).trim()) return parsed.pluginData;
-  } catch {
-  }
-  return path.join(os.homedir(), ".copilot-studio-cli");
 }
 function configPath() {
   const dir = resolvePluginDataDir();

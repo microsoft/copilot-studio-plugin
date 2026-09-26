@@ -1,4 +1,4 @@
-var _d=process.env.CLAUDE_PLUGIN_DATA;if(!_d){try{_d=JSON.parse(require('fs').readFileSync(require('path').join(require('os').homedir(),'.copilot-studio-cli','plugin-paths.json'),'utf8')).pluginData}catch{}}if(_d){var _p=require('path');process.env.NODE_PATH=[_p.join(_d,'node_modules'),process.env.NODE_PATH].filter(Boolean).join(_p.delimiter);require('module')._initPaths()}
+try{var _p=require('path'),_d=require(_p.join(__dirname,'plugin-data-dir.js')).resolvePluginDataDir();process.env.NODE_PATH=[_p.join(_d,'node_modules'),process.env.NODE_PATH].filter(Boolean).join(_p.delimiter);require('module')._initPaths()}catch{}
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   try {
@@ -14055,12 +14055,71 @@ var require_secure_msal_cache = __commonJS({
   }
 });
 
+// plugin-data-dir.js
+var require_plugin_data_dir = __commonJS({
+  "plugin-data-dir.js"(exports2, module2) {
+    var fs2 = require("fs");
+    var os2 = require("os");
+    var path2 = require("path");
+    var DEFAULT_PLUGIN_ROOT = path2.dirname(__dirname);
+    function pathsFilePath(homedir = os2.homedir()) {
+      return path2.join(homedir, ".copilot-studio-cli", "plugin-paths.json");
+    }
+    function realpathOrSelf(p) {
+      try {
+        return fs2.realpathSync(p);
+      } catch {
+        return path2.resolve(p);
+      }
+    }
+    function nonEmpty(value) {
+      return typeof value === "string" && value.trim() ? value : null;
+    }
+    function readPluginPaths(file) {
+      try {
+        const parsed = JSON.parse(fs2.readFileSync(file, "utf-8"));
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+      } catch {
+        return null;
+      }
+    }
+    function lookupRoot(roots, pluginRoot) {
+      if (!roots || typeof roots !== "object" || Array.isArray(roots)) return null;
+      const direct = nonEmpty(roots[pluginRoot]);
+      if (direct) return direct;
+      const wanted = realpathOrSelf(pluginRoot);
+      for (const [root, data] of Object.entries(roots)) {
+        if (nonEmpty(data) && realpathOrSelf(root) === wanted) return data;
+      }
+      return null;
+    }
+    function resolvePluginDataDir2({
+      env = process.env,
+      homedir = os2.homedir(),
+      pluginRoot = DEFAULT_PLUGIN_ROOT
+    } = {}) {
+      const fromEnv = nonEmpty(env.CLAUDE_PLUGIN_DATA) || nonEmpty(env.COPILOT_PLUGIN_DATA) || nonEmpty(env.PLUGIN_DATA);
+      if (fromEnv) return fromEnv;
+      const parsed = readPluginPaths(pathsFilePath(homedir));
+      if (parsed) {
+        const own = lookupRoot(parsed.roots, pluginRoot);
+        if (own) return own;
+        const last = nonEmpty(parsed.pluginData);
+        if (last) return last;
+      }
+      return path2.join(homedir, ".copilot-studio-cli");
+    }
+    module2.exports = { pathsFilePath, readPluginPaths, resolvePluginDataDir: resolvePluginDataDir2 };
+  }
+});
+
 // src/verify-knowledge-access.js
 var fs = require("fs");
 var os = require("os");
 var path = require("path");
 var { PublicClientApplication } = require_msal_node();
 var { createSecureCachePlugin } = require_secure_msal_cache();
+var { resolvePluginDataDir } = require_plugin_data_dir();
 function log(msg) {
   process.stderr.write(msg + "\n");
 }
@@ -14128,17 +14187,6 @@ function inferCloudFromUrl(rawUrl) {
   } catch {
   }
   return null;
-}
-function resolvePluginDataDir() {
-  const fromEnv = process.env.CLAUDE_PLUGIN_DATA || process.env.COPILOT_PLUGIN_DATA;
-  if (fromEnv && fromEnv.trim()) return fromEnv;
-  try {
-    const pathsFile = path.join(os.homedir(), ".copilot-studio-cli", "plugin-paths.json");
-    const parsed = JSON.parse(fs.readFileSync(pathsFile, "utf-8"));
-    if (parsed.pluginData && String(parsed.pluginData).trim()) return parsed.pluginData;
-  } catch {
-  }
-  return path.join(os.homedir(), ".copilot-studio-cli");
 }
 function resolveClientId({ explicit, agentId, tenantId }) {
   if (explicit) return explicit;

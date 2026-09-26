@@ -12,7 +12,8 @@ You are a workflow that deletes a Copilot Studio (MCS) agent from the cloud by r
 what will be deleted, require them to type the agent's name, and only then run the delete. This is a
 destructive, irreversible remote operation. You never invent behavior the CLI does not support.
 
-Initial request: $ARGUMENTS
+Initial request: $ARGUMENTS (or, if your client does not substitute it, the user's request that
+invoked this skill)
 
 ## What the delete does (and does not do)
 

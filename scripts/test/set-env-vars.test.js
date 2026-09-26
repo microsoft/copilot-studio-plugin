@@ -107,3 +107,51 @@ test("a data dir installed by an older version installs once more, then settles"
   runHook(fx, { CLAUDE_PLUGIN_DATA: fx.data });
   assert.equal(npmCalls(fx), 1);
 });
+
+test("accepts PLUGIN_DATA and COPILOT_PLUGIN_DATA", posixOnly, () => {
+  for (const name of ["PLUGIN_DATA", "COPILOT_PLUGIN_DATA"]) {
+    const fx = makeFixture();
+    const res = runHook(fx, { [name]: fx.data });
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(JSON.parse(fs.readFileSync(fx.pathsFile, "utf8")).pluginData, fx.data);
+  }
+});
+
+test("records this copy under roots and keeps other installed copies", posixOnly, () => {
+  const fx = makeFixture();
+  const otherRoot = path.join(fx.root, "other-plugin-copy");
+  fs.mkdirSync(otherRoot);
+  const removedRoot = path.join(fx.root, "removed-version");
+  fs.mkdirSync(path.dirname(fx.pathsFile), { recursive: true });
+  fs.writeFileSync(
+    fx.pathsFile,
+    JSON.stringify({
+      pluginData: "/other-data",
+      pluginRoot: otherRoot,
+      roots: { [otherRoot]: "/other-data", [removedRoot]: "/removed-data" },
+    })
+  );
+  const res = runHook(fx, { CLAUDE_PLUGIN_DATA: fx.data });
+  assert.equal(res.status, 0, res.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(fx.pathsFile, "utf8")), {
+    pluginData: fx.data,
+    pluginRoot: PLUGIN_ROOT,
+    roots: { [otherRoot]: "/other-data", [PLUGIN_ROOT]: fx.data },
+  });
+  assert.deepEqual(
+    fs.readdirSync(path.dirname(fx.pathsFile)),
+    ["plugin-paths.json"],
+    "no temp file is left behind"
+  );
+});
+
+test("replaces an unreadable plugin-paths.json", posixOnly, () => {
+  const fx = makeFixture();
+  fs.mkdirSync(path.dirname(fx.pathsFile), { recursive: true });
+  fs.writeFileSync(fx.pathsFile, "{broken");
+  const res = runHook(fx, { CLAUDE_PLUGIN_DATA: fx.data });
+  assert.equal(res.status, 0, res.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(fx.pathsFile, "utf8")).roots, {
+    [PLUGIN_ROOT]: fx.data,
+  });
+});

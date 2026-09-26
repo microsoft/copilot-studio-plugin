@@ -10,10 +10,27 @@ This plugin work in progress and supported by Github Issues only at this time, w
 
 ## Installation
 
+### Claude Code
+
 ```bash
 /plugin marketplace add microsoft/copilot-studio-plugin
 /plugin install mcs-assistant@copilot-studio-plugin
 ```
+
+### Codex
+
+```bash
+codex plugin marketplace add microsoft/copilot-studio-plugin
+codex plugin add mcs-assistant@copilot-studio-plugin
+```
+
+Then start Codex, open `/hooks` and trust the plugin's `SessionStart` hook. Codex skips plugin hooks
+until you trust them, and asks again when an update changes the hook. The hook installs the native
+modules that keep sign-in tokens in the OS credential store; without them `/chat` falls back to a
+plaintext token cache.
+
+Run a skill with `$mcs-assistant:<skill>` (for example `$mcs-assistant:add-knowledge`) or pick it
+from `/skills`. Codex doesn't register the plugin's agents; the skills start them as sub-agents.
 
 ## Trademarks
 
