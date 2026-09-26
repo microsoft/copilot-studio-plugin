@@ -52,7 +52,7 @@ Its path is `<pluginRoot>/reference/knowledge-schema.md` (see "Locate the plugin
 1. Auto-discover the cloned agent with `Glob: **/settings.mcs.yml`. A cloned agentic-loop workspace
    contains `settings.mcs.yml` at its root. **Never hardcode an agent name.**
 2. If none is found, tell the user this skill needs a **locally-cloned agentic-loop agent** (clone
-   one with `pac copilot clone`, or use `/migrate`). Stop.
+   one with `pac copilot clone`, or use the `migrate` skill). Stop.
 3. If several are found, ask the user which agent to add the knowledge to.
 4. Read the agent's **`schemaName`** from `settings.mcs.yml` (e.g. `crbab_guitarcoach_dcF_b3`) — it is
    the filename prefix for source-backed knowledge components.
@@ -133,7 +133,7 @@ node "<pluginRoot>/scripts/verify-knowledge-access.bundle.js" --agent-dir "<agen
   with escalated permissions the user approves: it needs network access and the OS credential store.
 - Add `--dry-run` to resolve the plan (encoded share id, Graph endpoint, scopes, `needsClientId`)
   **without** authenticating — useful to check setup first.
-- It reuses the same per-agent Entra **public-client app id** the `/chat` skill saves. That app
+- It reuses the same per-agent Entra **public-client app id** the `chat` skill saves. That app
   registration must **also** have the delegated Microsoft Graph permission **`Files.ReadWrite`**
   consented, and must be an app the user **owns** in the tenant. Microsoft documents
   `Files.ReadWrite` as the least-privileged delegated permission for `GET /shares`; although this
@@ -148,7 +148,7 @@ node "<pluginRoot>/scripts/verify-knowledge-access.bundle.js" --agent-dir "<agen
 - **`AADSTS65002` in an `error`** means the `--client-id` is a Microsoft **first-party/sample** app,
   which cannot obtain Graph tokens. Tell the user to supply **their own** Entra app registration
   (single-tenant, public client flows enabled, delegated Graph `Files.ReadWrite` consented). An app
-  id that works for `/chat` (preauthorized for the Power Platform API) is **not** automatically valid
+  id that works for the `chat` skill (preauthorized for the Power Platform API) is **not** automatically valid
   for Graph. This is a setup issue, not a failure of the source — continue.
 
 **Interpreting the JSON `status`:**

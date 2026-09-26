@@ -214,7 +214,7 @@ skill exposes this as an **opt-in** step backed by `scripts/verify-knowledge-acc
 - **⚠️ It checks the author only.** Because knowledge is retrieved at runtime with **each end user's**
   delegated permissions, a positive result confirms *your* access — not that end users can read the
   item. Always pair it with the runtime-permissions note above.
-- **Setup:** it reuses the per-agent Entra public-client app id saved by the `/chat` skill; that app
+- **Setup:** it reuses the per-agent Entra public-client app id saved by the `chat` skill; that app
   registration must additionally have delegated Graph **`Files.ReadWrite`** consented. Microsoft
   [documents that permission](https://learn.microsoft.com/graph/api/shares-get?view=graph-rest-1.0#permissions)
   as the least-privileged delegated permission for `GET /shares`; the script only issues a `GET`,
