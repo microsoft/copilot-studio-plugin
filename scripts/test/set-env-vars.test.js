@@ -27,7 +27,9 @@ function makeFixture() {
   fs.mkdirSync(bin);
   fs.writeFileSync(
     path.join(bin, "npm"),
-    '#!/bin/sh\necho "$@" >> "$FAKE_NPM_LOG"\nexit "$(cat "$FAKE_NPM_EXIT" 2>/dev/null || echo 0)"\n',
+    '#!/bin/sh\necho "$@" >> "$FAKE_NPM_LOG"\n' +
+      'if [ -f "$FAKE_PATHS_FILE" ]; then cp "$FAKE_PATHS_FILE" "$FAKE_NPM_LOG.paths"; fi\n' +
+      'exit "$(cat "$FAKE_NPM_EXIT" 2>/dev/null || echo 0)"\n',
     { mode: 0o755 }
   );
   const home = path.join(root, "home");
@@ -52,6 +54,7 @@ function runHook(fx, env) {
       PATH: [fx.bin, "/usr/bin", "/bin"].join(path.delimiter),
       FAKE_NPM_LOG: fx.npmLog,
       FAKE_NPM_EXIT: fx.npmExit,
+      FAKE_PATHS_FILE: fx.pathsFile,
       ...env,
     },
   });
@@ -154,4 +157,13 @@ test("replaces an unreadable plugin-paths.json", posixOnly, () => {
   assert.deepEqual(JSON.parse(fs.readFileSync(fx.pathsFile, "utf8")).roots, {
     [PLUGIN_ROOT]: fx.data,
   });
+});
+
+test("records this copy before npm install runs", posixOnly, () => {
+  const fx = makeFixture();
+  const res = runHook(fx, { CLAUDE_PLUGIN_DATA: fx.data });
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(npmCalls(fx), 1);
+  const seenByNpm = JSON.parse(fs.readFileSync(fx.npmLog + ".paths", "utf8"));
+  assert.equal(seenByNpm.roots[PLUGIN_ROOT], fx.data);
 });
