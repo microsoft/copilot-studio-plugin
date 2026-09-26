@@ -1,5 +1,6 @@
 ---
-description: Chat with a locally-cloned Copilot Studio CLI (agentic-loop) agent to test it, streaming turns against the published agent via the agenticruntime endpoint.
+name: chat
+description: Chat with a locally-cloned Copilot Studio CLI (agentic-loop) agent to test it, streaming turns against the published agent via the agenticruntime endpoint. Use when the user asks to chat with, talk to, send a message to, or test a locally-cloned Copilot Studio CLI agent.
 argument-hint: Optional agent name/path and the first message to send
 allowed-tools: Bash(pac), Bash(node *chat-with-agent.bundle.js*), Read, Write, Glob, Grep, Task, WebFetch(domain:raw.githubusercontent.com)
 ---
@@ -11,23 +12,33 @@ You are a workflow that lets the user hold a live conversation with a **locally-
 CLI agent, make sure an Entra app registration is configured, then run the bundled chat script and
 relay turns. You never invent behavior the files do not support.
 
-Initial request: $ARGUMENTS
+Initial request: $ARGUMENTS (or, if your client does not substitute it, the user's request that
+invoked this skill)
+
+When this skill says to ask the user or to wait for them, use your client's structured question tool
+if it has one; otherwise ask in plain text and stop until they answer.
 
 ---
 
 ## Core Process
 
-### 1. Resolve the plugin paths (non-blocking)
+### 1. Locate the plugin files (non-blocking)
 
-Read `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` and
-`pluginData` for the current `mcs-assistant` plugin.
+Paths below are relative to the `mcs-assistant` plugin root (`<pluginRoot>`). Resolve it once and use
+absolute paths from then on:
 
-- The chat script is at `path.join(pluginRoot, 'scripts', 'chat-with-agent.bundle.js')`. Use this
-  absolute path for every `node` invocation below.
-- If `plugin-paths.json` cannot be read, fall back to locating `scripts/chat-with-agent.bundle.js`
-  under the installed plugin directory. The script itself also self-discovers `pluginData`
-  (env `CLAUDE_PLUGIN_DATA`/`COPILOT_PLUGIN_DATA` → `plugin-paths.json` → home), so you do not need
-  to pass it in.
+1. **From this skill's own location.** This file is `<pluginRoot>/skills/chat/SKILL.md`, so the
+   plugin root is two directories above it. Use the base directory or file path your client shows for
+   this skill.
+2. **Otherwise from `plugin-paths.json`.** Read
+   `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and use its `pluginRoot`. The
+   file is rewritten by whichever client (Claude Code, Codex, GitHub Copilot CLI) started a session
+   last, so it can point to a different installed copy of the plugin.
+
+Check that `<pluginRoot>/scripts/chat-with-agent.bundle.js` exists before using it. If it doesn't, try
+the next option, then `Glob` for that file under the installed plugin directory. Use this absolute
+script path for every `node` invocation below. The script resolves its data directory
+(`<pluginData>`) itself, so you do not need to pass it in.
 
 ### 2. Verify the PAC CLI prerequisite (non-blocking)
 
@@ -40,7 +51,7 @@ the user cloned the agent. Make one attempt; continue even if it cannot be read.
    `Glob: **/settings.mcs.yml` (a cloned CLI-agent workspace contains `settings.mcs.yml` and
    `.mcs/conn.json`).
 2. If no agent is found, tell the user this skill needs a **locally-cloned agent** and that they can
-   clone one with `pac copilot` (e.g. via `/migrate` or `pac copilot clone`). Stop.
+   clone one with `pac copilot` (e.g. via the `migrate` skill or `pac copilot clone`). Stop.
 3. If several are found, ask the user which one (or have them pass a path).
 4. **CLI-agent gate.** Read the chosen agent's `settings.mcs.yml` and check
    `configuration.recognizer.kind`:
@@ -49,7 +60,7 @@ the user cloned the agent. Make one attempt; continue even if it cannot be read.
      clone` / migration.)
    - anything else (e.g. `GenerativeAIRecognizer`) → stop and tell the user this skill only chats
      with **CLI-authored** agents, because only they are served by the agenticruntime endpoint this
-     command uses. Suggest `/migrate` if they want to convert a classic agent.
+     skill uses. Suggest the `migrate` skill if they want to convert a classic agent.
 
    The chat script enforces this gate too (it exits with a clear JSON error), so you may also detect
    a non-CLI agent from a `recognizerKind` error in the script output.
@@ -102,7 +113,7 @@ and paste back the **Application (client) ID**.
    sign-in — keyed by the agent's `AgentId`, plus a per-tenant default so other agents in the same
    tenant reuse it. Nothing is written if sign-in fails, so a wrong id is never persisted. The config
    file (`<pluginData>/chat-config.json`) lives in the plugin **data** directory (separate from the
-   plugin code), so it survives `/plugin update`.
+   plugin code), so it survives plugin updates.
 
    *(Advanced: `--set-client-id "<appId>"` pre-saves the id without a sign-in — only use this if you
    are certain the app registration is correct, since it is not validated.)*
@@ -184,9 +195,9 @@ same `--conversation-id`, until the user is done.
   `404` (unpublished agent) fails fast with a clear "publish the agent" message instead of hanging.
   This works around microsoft/Agents-for-js#1198, where the streaming client retries a non-2xx
   forever and never returns.
-- **What this command does not do.** It does not author, edit, publish, or manage the agent, and it
-  does not use Direct Line. It only chats with an already-published CLI agent. Use `/migrate` or the
-  manage agent for those tasks.
+- **What this skill does not do.** It does not author, edit, publish, or manage the agent, and it
+  does not use Direct Line. It only chats with an already-published CLI agent. Use the `migrate`
+  skill or the manage agent for those tasks.
 - **Auth footprint.** Access and refresh tokens are cached **per-agent in OS-native encrypted
   storage** (macOS Keychain / Windows DPAPI / Linux libsecret) via `@azure/msal-node-extensions`;
   the on-disk `~/.copilot-studio-cli/chat-<AgentId>.cache.json` holds no readable token. The native
