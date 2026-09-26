@@ -17,20 +17,24 @@ if (!d) {
 // Install native deps (@azure/msal-node-extensions, keytar) that esbuild cannot
 // bundle into the plugin data dir, so chat-with-agent can resolve them at runtime
 // for OS-native encrypted token storage. Idempotent: only runs when the manifest
-// differs from what was last installed.
+// differs from the one recorded after the last successful install, so a failed
+// install is retried at the next session start.
 try {
   const src = p.join(r, 'scripts', 'native-deps.json');
   const dst = p.join(d, 'package.json');
+  const installed = p.join(d, 'installed-native-deps.json');
+  const manifest = fs.readFileSync(src, 'utf8');
   let needsInstall = true;
   try {
-    needsInstall = fs.readFileSync(src, 'utf8') !== fs.readFileSync(dst, 'utf8');
+    needsInstall = manifest !== fs.readFileSync(installed, 'utf8');
   } catch {
     needsInstall = true;
   }
   if (needsInstall) {
     fs.mkdirSync(d, { recursive: true });
-    fs.copyFileSync(src, dst);
+    fs.writeFileSync(dst, manifest);
     cp.execSync('npm install --no-audit --no-fund', { cwd: d, stdio: 'inherit' });
+    fs.writeFileSync(installed, manifest);
   }
 } catch (err) {
   // Non-fatal: chat-with-agent falls back to a plaintext token cache if the
