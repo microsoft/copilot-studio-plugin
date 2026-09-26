@@ -33,6 +33,18 @@ Codex's default sandbox (`workspace-write`) blocks network access and writes out
 `pac`, the chat and knowledge-access scripts and the add-skill gallery need both, so the skills run
 those commands with escalated permissions, which Codex asks you to approve.
 
+Platform notes:
+
+- On Windows, Codex's sandbox can't read the installed plugin's files, so Codex also asks before it
+  reads the skill and agent files.
+- On Ubuntu 24.04, AppArmor blocks the user namespaces that Codex's sandbox (bubblewrap) needs.
+  Commands fail inside the sandbox and Codex asks to run them outside it.
+- On Linux, sign-in tokens are stored through the Secret Service (for example GNOME Keyring). If it's
+  locked or not running, for example in an SSH session after a reboot, the chat skill writes them to a
+  plaintext file under `~/.copilot-studio-cli` and doesn't warn you.
+- The chat skill saves the app registration (client ID) in the plugin's data folder, so if you use the
+  plugin from both Claude Code and Codex, you enter it once in each.
+
 Run a skill with `$mcs-assistant:<skill>` (for example `$mcs-assistant:add-knowledge`) or pick it
 from `/skills`. Codex doesn't register the plugin's agents; the skills start them as sub-agents.
 
