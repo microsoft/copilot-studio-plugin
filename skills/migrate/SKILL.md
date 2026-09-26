@@ -45,6 +45,13 @@ Always include the resolved absolute `pluginRoot` in the task. When a step says 
 existing sub-agent, send it to that same sub-agent (Claude Code: SendMessage or resume; Codex:
 `followup_task`) so it keeps its context; don't start a new one.
 
+**Model choice.** Where a step names a model tier, map it to your client's sub-agent settings (Claude
+Code: the Task tool's `model`; Codex: `spawn_agent`'s `model` and `reasoning_effort`). "The latest
+best of the bests AI model, with high reasoning effort" means your client's most capable model with
+high reasoning; "the latest good, mid-tier AI model" means a solid mid-tier model at default effort.
+If the user named a model or reasoning effort for the sub-agents in their request, use that instead
+and note it in the final summary.
+
 ### Asking the user
 
 Where this workflow asks the user something, use your client's structured question tool if it has one
