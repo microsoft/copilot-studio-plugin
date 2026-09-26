@@ -15,6 +15,10 @@ destructive, irreversible remote operation. You never invent behavior the CLI do
 Initial request: $ARGUMENTS (or, if your client does not substitute it, the user's request that
 invoked this skill)
 
+If your client runs commands in a sandbox (for example Codex's default `workspace-write`), run
+`msagent` outside it, with escalated permissions the user approves, because it needs network access.
+The typed-name confirmation below still comes first.
+
 ## What the delete does (and does not do)
 
 - Deletes **one** cloud agent in Copilot Studio, and removes the agent's `ManagedAgent` record plus

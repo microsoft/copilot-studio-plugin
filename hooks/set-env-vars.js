@@ -17,37 +17,12 @@ if (!d) {
   process.exit(0);
 }
 
-// Install native deps (@azure/msal-node-extensions, keytar) that esbuild cannot
-// bundle into the plugin data dir, so chat-with-agent can resolve them at runtime
-// for OS-native encrypted token storage. Idempotent: only runs when the manifest
-// differs from the one recorded after the last successful install, so a failed
-// install is retried at the next session start.
-try {
-  const src = p.join(r, 'scripts', 'native-deps.json');
-  const dst = p.join(d, 'package.json');
-  const installed = p.join(d, 'installed-native-deps.json');
-  const manifest = fs.readFileSync(src, 'utf8');
-  let needsInstall = true;
-  try {
-    needsInstall = manifest !== fs.readFileSync(installed, 'utf8');
-  } catch {
-    needsInstall = true;
-  }
-  if (needsInstall) {
-    fs.mkdirSync(d, { recursive: true });
-    fs.writeFileSync(dst, manifest);
-    cp.execSync('npm install --no-audit --no-fund', { cwd: d, stdio: 'inherit' });
-    fs.writeFileSync(installed, manifest);
-  }
-} catch (err) {
-  // Non-fatal: chat-with-agent falls back to a plaintext token cache if the
-  // native deps are unavailable.
-  console.error('[copilot-studio] native dependency install skipped: ' + (err && err.message ? err.message : err));
-}
-
 // Record this installed copy under `roots`, keyed by its plugin root, so each copy (for example
 // one installed by Claude Code and one by Codex) finds its own data dir. The top-level fields are
 // kept for older plugin versions and always describe the last session that started.
+// This runs before the install below, which can take long enough to hit the hook timeout.
+// Two sessions starting at the same moment can each drop the other's new entry; the next
+// session start of that copy adds it back, and until then its scripts use `pluginData`.
 let paths = {};
 try {
   const parsed = JSON.parse(fs.readFileSync(pathsFile, 'utf8'));
@@ -83,4 +58,32 @@ if (e) {
     e,
     'export CLAUDE_PLUGIN_DATA="' + d + '"\nexport CLAUDE_PLUGIN_ROOT="' + r + '"\n'
   );
+}
+
+// Install native deps (@azure/msal-node-extensions, keytar) that esbuild cannot
+// bundle into the plugin data dir, so chat-with-agent can resolve them at runtime
+// for OS-native encrypted token storage. Idempotent: only runs when the manifest
+// differs from the one recorded after the last successful install, so a failed
+// install is retried at the next session start.
+try {
+  const src = p.join(r, 'scripts', 'native-deps.json');
+  const dst = p.join(d, 'package.json');
+  const installed = p.join(d, 'installed-native-deps.json');
+  const manifest = fs.readFileSync(src, 'utf8');
+  let needsInstall = true;
+  try {
+    needsInstall = manifest !== fs.readFileSync(installed, 'utf8');
+  } catch {
+    needsInstall = true;
+  }
+  if (needsInstall) {
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(dst, manifest);
+    cp.execSync('npm install --no-audit --no-fund', { cwd: d, stdio: 'inherit' });
+    fs.writeFileSync(installed, manifest);
+  }
+} catch (err) {
+  // Non-fatal: chat-with-agent falls back to a plaintext token cache if the
+  // native deps are unavailable.
+  console.error('[copilot-studio] native dependency install skipped: ' + (err && err.message ? err.message : err));
 }
