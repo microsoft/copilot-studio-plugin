@@ -95,6 +95,7 @@ You need these inputs before implementing a migrated agent:
 3. Target migrated agent display name.
 4. Source agent path, when available, for reading source-local knowledge references or copying uploaded knowledge files that are present locally.
 5. Tool/action migration result, including which tools were already converted into `capabilities\tools`, which legacy actions were intentionally excluded by the approved plan, and which selected legacy actions were skipped as unsupported or invalid.
+6. The absolute `pluginRoot` of the installed `mcs-assistant` plugin, for reading its reference files.
 
 If the target project directory or describer report is missing, ask for the missing value and stop. If source files or unsupported action details are missing, continue with reasonable assumptions and list the gap in the final response.
 
@@ -162,9 +163,10 @@ The **authoritative knowledge-source schema** — every source kind (public webs
 OneDrive, uploaded file), the exact YAML shapes and fields, `targetKind` rules, filename conventions,
 and SharePoint/OneDrive URL normalization — lives in a single shared reference,
 `reference/knowledge-schema.md`. Read it and follow it exactly; the `add-knowledge` skill uses the
-same file, so the two never drift. Resolve its path via the plugin root: read
-`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` for the
-current `mcs-assistant` plugin, then read `path.join(pluginRoot, 'reference', 'knowledge-schema.md')`.
+same file, so the two never drift. Read it from the `pluginRoot` given in your task:
+`path.join(pluginRoot, 'reference', 'knowledge-schema.md')`. Only if your task has no `pluginRoot`, read
+`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and use its `pluginRoot`; that
+file can point to a different installed copy of the plugin, so check that the reference file exists.
 
 Do not create file-knowledge sidecars for missing binary files. If the source report only says that
 knowledge exists but gives no usable URL or file, capture the intended grounding behavior in
@@ -202,9 +204,10 @@ The **authoritative skill schema** — the inline and upload variants, the exact
 fields, the `behaviors/` file layout, anchor/sidecar rules, folder naming, and schema-name
 conventions — lives in a single shared reference, `reference/skill-schema.md`. Read it and follow it
 exactly; the `add-skill` skill and its importer use the same file, so the three never drift.
-Resolve its path via the plugin root: read
-`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` for the
-current `mcs-assistant` plugin, then read `path.join(pluginRoot, 'reference', 'skill-schema.md')`.
+Read it from the `pluginRoot` given in your task:
+`path.join(pluginRoot, 'reference', 'skill-schema.md')`. Only if your task has no `pluginRoot`, read
+`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and use its `pluginRoot`; that
+file can point to a different installed copy of the plugin, so check that the reference file exists.
 
 Author new skills as the **inline** variant (`kind: InlineAgentSkill` with a `content:` block), which
 is what that reference documents for this agent.

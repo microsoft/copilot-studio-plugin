@@ -1,5 +1,6 @@
 ---
-description: Migrate a Copilot Studio agent from the previous architecture to the new agentic loop, cloning it first if it is not already present locally.
+name: migrate
+description: Migrate a Copilot Studio agent from the previous architecture to the new agentic loop, cloning it first if it is not already present locally. Use when the user asks to migrate, convert, or upgrade a classic Copilot Studio agent to the new agentic loop.
 argument-hint: Agent name or path to describe (and source environment if it must be cloned)
 allowed-tools: Bash(pac), Bash(node *convert-actions-to-tools.js*), Read, Write, Glob, Grep, WebFetch(domain:raw.githubusercontent.com), Task
 ---
@@ -8,7 +9,47 @@ allowed-tools: Bash(pac), Bash(node *convert-actions-to-tools.js*), Read, Write,
 
 You are a workflow that migrates a Copilot Studio agent from the previous architecture to the new agentic loop. You make sure the agent is available locally, delegate the actual migration to the appropriate sub-agents, and never invent behavior that the files do not support.
 
-Initial request: $ARGUMENTS
+Initial request: $ARGUMENTS (or, if your client does not substitute it, the user's request that invoked this skill)
+
+### Locate the plugin files
+
+Paths below are relative to the `mcs-assistant` plugin root (`<pluginRoot>`). Resolve it once and use
+absolute paths from then on:
+
+1. **From this skill's own location.** This file is `<pluginRoot>/skills/migrate/SKILL.md`, so the
+   plugin root is two directories above it. Use the base directory or file path your client shows for
+   this skill.
+2. **Otherwise from `plugin-paths.json`.** Read
+   `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and use its `pluginRoot`. The
+   file is rewritten by whichever client (Claude Code, Codex, GitHub Copilot CLI) started a session
+   last, so it can point to a different installed copy of the plugin.
+
+Check that `<pluginRoot>/scripts/convert-actions-to-tools.js` exists before using it. If it doesn't, try
+the next option, then `Glob` for that file under the installed plugin directory.
+
+### Delegating to sub-agents
+
+This workflow delegates to the plugin's sub-agents. For each one, if your client has it as a
+registered agent type (Claude Code: `mcs-assistant:<Agent Name>`, for example
+`mcs-assistant:Copilot Studio Describer`), use that. Otherwise start a general-purpose sub-agent whose
+first message is the full contents of `<pluginRoot>/agents/<file>.md`, followed by the task:
+
+| Sub-agent | File |
+|---|---|
+| Copilot Studio Manage | `agents/copilot-studio-manage.md` |
+| Copilot Studio Init | `agents/copilot-studio-init.md` |
+| Copilot Studio Describer | `agents/copilot-studio-describer.md` |
+| Copilot Studio Architect | `agents/copilot-studio-architect.md` |
+
+Always include the resolved absolute `pluginRoot` in the task. When a step says to send feedback to an
+existing sub-agent, send it to that same sub-agent (Claude Code: SendMessage or resume; Codex:
+`followup_task`) so it keeps its context; don't start a new one.
+
+### Asking the user
+
+Where this workflow asks the user something, use your client's structured question tool if it has one
+(for example `AskUserQuestion` or `ask_user`); otherwise ask in plain text, listing the choices, and
+**stop and wait** for the answer. Never continue past an approval gate without an explicit answer.
 
 ---
 
@@ -22,7 +63,7 @@ Persist the approved plan so a stopped migration can be resumed:
 
 - When the user approves the migration plan (step 5a), write it to a Markdown file named `MIGRATION-PLAN-<random>.md`, where `<random>` is a short random string (e.g. 6-8 hex/alphanumeric chars) used only to keep the filename unique. Write it as a **sibling of the target project directory** (i.e., in the parent folder, next to the project — not inside it) so it is never packed or pushed with the agent.
 - Update that same file after each subsequent major step completes (tool migration, architect, push), so it always reflects current state.
-- At the start of a `/migrate` run, look for an existing `MIGRATION-PLAN-*.md` sibling to the resolved target/source workspace. If one exists and its plan is already approved, offer to resume from the next incomplete step instead of re-running describe and plan approval. If it exists but is not yet approved, re-present it for approval. If none exists, start fresh.
+- At the start of a migration run, look for an existing `MIGRATION-PLAN-*.md` sibling to the resolved target/source workspace. If one exists and its plan is already approved, offer to resume from the next incomplete step instead of re-running describe and plan approval. If it exists but is not yet approved, re-present it for approval. If none exists, start fresh.
 
 ### 1a. Verify the PAC CLI prerequisite (blocking)
 
@@ -35,12 +76,12 @@ Don't install PAC CLI yourself, except if the user explicitly requests it. If yo
 
 Run both checks below before the migration logic. These checks are important but non-blocking: make one reasonable attempt using the documented procedures and locations, but do not search alternative directories or repeatedly retry failures; you can continue if a file, property, directory, remote response, or valid version cannot be obtained.
 
-First, read `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and get the `pluginRoot` for the current `mcs-assistant` plugin. Use that value for both checks.
+Use the `pluginRoot` resolved in "Locate the plugin files" for both checks.
 
 #### Legacy plugin
 
 The current plugin, `mcs-assistant@copilot-studio-plugin`, supports modern-orchestration agents. The legacy plugin, `copilot-studio@skills-for-copilot-studio`, supports only classic orchestration and may conflict with the current plugin.
-1. Go up two directory levels from `pluginRoot` to find the installed plugins root directory.
+1. Find the installed plugins cache directory. Claude Code and Codex both install plugins as `<cache>/<marketplace>/<plugin>/<version>`, so it is three directory levels above `pluginRoot` (for example `~/.claude/plugins/cache` or `~/.codex/plugins/cache`). If `pluginRoot` doesn't follow that layout (for example a local development copy), skip this check.
 2. Check whether that directory contains `skills-for-copilot-studio`.
 3. If it is present, pause and warn the user that removing or disabling the legacy plugin is recommended. Ask the user whether they want to remove or disable it, but continue the migration if they choose not to.
 
@@ -49,7 +90,7 @@ The current plugin, `mcs-assistant@copilot-studio-plugin`, supports modern-orche
 1. Read the installed version from the `version` property in `path.join(pluginRoot, '.claude-plugin', 'plugin.json')`.
 2. Fetch the available version from the `version` property at https://raw.githubusercontent.com/microsoft/copilot-studio-plugin/refs/heads/main/.claude-plugin/plugin.json.
 3. Compare the versions using semantic-version precedence, not lexicographic string ordering.
-4. If the available version is newer, pause before continuing and use `ask_user` to show both version numbers and ask whether the user wants to update first. Offer **Update before migrating** and **Continue without updating**. If they choose to update, tell them to run `/plugin update mcs-assistant@copilot-studio-plugin`, then stop this migration run so they can update and rerun `/migrate`; do not update the plugin automatically. If they choose to continue, proceed with the installed version.
+4. If the available version is newer, pause before continuing and ask the user (see "Asking the user"), showing both version numbers, whether they want to update first. Offer **Update before migrating** and **Continue without updating**. If they choose to update, tell them how to update in their client (Claude Code: `/plugin update mcs-assistant@copilot-studio-plugin`; Codex: `codex plugin marketplace upgrade copilot-studio-plugin`, then `codex plugin add mcs-assistant@copilot-studio-plugin`), then stop this migration run so they can update and run the migration again; do not update the plugin automatically. If they choose to continue, proceed with the installed version.
 5. If the installed version is current or newer, continue without prompting.
 
 If either check cannot be completed, briefly note which check was skipped and why, then continue. A Phase 1b failure must never stop the migration by itself.
@@ -77,7 +118,7 @@ Use a new target project directory in the workspace named exactly like the migra
 
 Before delegating to the init sub-agent, let the user control the publisher customization prefix used by the migrated agent and its components instead of silently using the plugin default (`catmgr`).
 
-Use `ask_user` to ask which publisher customization prefix to use (for example, `zava`). Offer the plugin default `catmgr` as the first (recommended) choice, and let the user type their own via the free-text option. Validate the chosen prefix before continuing: it must be 2-8 alphanumeric characters, start with a letter, and must not start with `mscrm` (case-insensitive). Preserve the user's casing. If the value is invalid, explain why and ask again.
+Ask the user which publisher customization prefix to use (for example, `zava`). Offer the plugin default `catmgr` as the first (recommended) choice, and let the user type their own via the free-text option. Validate the chosen prefix before continuing: it must be 2-8 alphanumeric characters, start with a letter, and must not start with `mscrm` (case-insensitive). Preserve the user's casing. If the value is invalid, explain why and ask again.
 
 Record the approved publisher prefix so it can be passed to the init sub-agent and captured in `MIGRATION-PLAN-<random>.md`.
 
@@ -98,7 +139,7 @@ Before building the user-approved migration plan, inspect the legacy action file
 3. If the folder exists, run the inventory command:
 
 ```bash
-node scripts\convert-actions-to-tools.js <legacy-actions-folder> --list
+node "<pluginRoot>/scripts/convert-actions-to-tools.js" <legacy-actions-folder> --list
 ```
 
 Use the inventory and the describer report together to identify every legacy action's source file name, whole `mcs.metadata` object, `modelDisplayName`, `modelDescription`, `action.operationId` or `action.flowId` as applicable, support status, and likely relevance to the modern agent. For workflow actions, the converter resolves the sibling `workflows` folder by matching the `flowId` to the ID suffix in the workflow folder name and inventories the inputs and outputs extracted from `workflow.json`. The source file name is the stable selector to use later with `--include` or `--exclude`.
@@ -107,7 +148,7 @@ Use the inventory and the describer report together to identify every legacy act
 
 Before any tool migration or YAML implementation, the user must approve a **migration plan** derived from the description. This is a single iterative loop, not a set of discrete questions: you present one consolidated plan, the user approves or comments, and you re-present the whole updated plan each round until they confirm. The architect MUST NOT run until the user approves the plan.
 
-1. **Build the plan from the description.** Using the describer's report, assemble one consolidated artifact that describes the agent being built, not just the legacy one. Make clear throughout that these capabilities are what the **new (migrated) agent will have** — i.e., what is being carried over and built into the modern agent. Include these parts:
+1. **Build the plan from the description.** If the describer stopped without delivering its report (for example because it was interrupted), send it a follow-up or start it again; don't describe the source agent yourself instead. Using the describer's report, assemble one consolidated artifact that describes the agent being built, not just the legacy one. Make clear throughout that these capabilities are what the **new (migrated) agent will have** — i.e., what is being carried over and built into the modern agent. Include these parts:
    - **What the new agent is for** — the one-paragraph high-level summary, framed as the purpose of the migrated agent.
    - **Capabilities of the new agent** — the `Capability` vs `Behavior` table, presented as the capabilities that will become part of the migrated agent. State explicitly that approving the plan means these become the modern agent's capabilities. The `Capability` column is phrased from the agent's perspective using agent-as-actor verbs (e.g., "Retrieves the user's cases", not "View my cases"), covering both user-initiated capabilities and always-on ones (identifies user & country, handles language, formatting). The `Behavior` column describes what the agent does and its decision logic in plain language (no variables, connectors, flows, or topic names) and how the start-of-conversation context (country, language) shapes later answers.
    - **Tool/action migration decisions** — for each legacy action from step 5a, include a table with the action file name, the most important inventory fields (`mcs.metadata`, `modelDisplayName`, `modelDescription`, and `action.operationId`), support status, approved decision, and rationale. Use these decisions:
@@ -117,8 +158,8 @@ Before any tool migration or YAML implementation, the user must approve a **migr
      - `unsupported`: the action cannot be auto-converted; pass it to the architect for manual refactor or gap handling if the capability remains in scope. A workflow lookup failure is `unsupported`, because the architect may still be able to identify the renamed workflow folder and author the tool from `workflow.json`.
    - **Migration plan** — for each open gap the describer surfaced (e.g., duplicate regional knowledge as topics vs sub-agents, non-migratable flows, language handling, country allow-lists, cleanup), propose how to handle it in the migration with a recommended approach, not just an open question. Make these proposals concrete so the user can react to a plan rather than start from a blank page.
    - Offer the full describer report on request.
-2. **Present the whole plan and ask for approval** using the `ask_user` tool. Offer only two explicit choices — **Approve** (proceed to migration) and **Stop** — plus the free-text "Other" option that `ask_user` provides. Do not add a separate "request changes" choice: the free-text "Other" already lets the user request changes or comment on any part of the plan (description corrections, a different gap resolution, added guidance). Make the prompt clear that typing in "Other" is how to request changes.
-3. **Iterate on comments.** If the user requests changes via the free-text answer, apply their feedback: for description corrections, send the feedback to the existing describer sub-agent (via `write_agent`) so it refines the same report with full context; for plan/gap-handling changes, update the proposals directly. Then re-present the **entire** plan in full again — the complete "what the new agent is for" paragraph, the full capabilities table with every row rendered, and the full migration plan — with the requested changes already applied. Do NOT show a diff, delta, or shorthand such as "same as above, minus the X row"; always render the whole updated plan from top to bottom so the user reviews the complete current state each round. Then ask for approval once more. Repeat until the user approves or stops.
+2. **Present the whole plan and ask for approval** (see "Asking the user"). Offer only two explicit choices — **Approve** (proceed to migration) and **Stop** — plus free text. With a structured question tool, that is its free-text "Other" option; when asking in plain text, say that any other reply is taken as requested changes. Do not add a separate "request changes" choice: the free text already lets the user request changes or comment on any part of the plan (description corrections, a different gap resolution, added guidance). Make the prompt clear that free text is how to request changes.
+3. **Iterate on comments.** If the user requests changes via the free-text answer, apply their feedback: for description corrections, send the feedback to the existing describer sub-agent (see "Delegating to sub-agents") so it refines the same report with full context; for plan/gap-handling changes, update the proposals directly. Then re-present the **entire** plan in full again — the complete "what the new agent is for" paragraph, the full capabilities table with every row rendered, and the full migration plan — with the requested changes already applied. Do NOT show a diff, delta, or shorthand such as "same as above, minus the X row"; always render the whole updated plan from top to bottom so the user reviews the complete current state each round. Then ask for approval once more. Repeat until the user approves or stops.
 4. Capture the approved plan — including the agreed handling for every gap and every tool/action migration decision — to pass forward to the architect as explicit decisions, not guesses. On approval, write the full plan to the sibling `MIGRATION-PLAN-<random>.md` file (see "Resumability") so it can be resumed or used as the architect's input spec. Only after the user approves the plan, continue to tool migration and implementation.
 
 ### 6. Migrate tools and actions
@@ -129,11 +170,11 @@ Step 1: Check the approved migration plan. If there are no actions with the `mig
 Step 2: If there are approved actions to migrate, check if the `capabilities\tools` folder exists in the new agent. If it does not exist, create it.
 Step 3: Run the migration script using one command derived from the approved decisions.
 
-- To migrate all directly supported actions, run: `node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> --all --report <tool-migration-report-json>`
+- To migrate all directly supported actions, run: `node "<pluginRoot>/scripts/convert-actions-to-tools.js" <legacy-actions-folder> <new-tools-folder> --all --report <tool-migration-report-json>`
 
-- To migrate a selected subset, pass the approved action file names after `--include`: `node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> --include "<action-file-1.mcs.yml>" "<action-file-2.mcs.yml>" --report <tool-migration-report-json>`
+- To migrate a selected subset, pass the approved action file names after `--include`: `node "<pluginRoot>/scripts/convert-actions-to-tools.js" <legacy-actions-folder> <new-tools-folder> --include "<action-file-1.mcs.yml>" "<action-file-2.mcs.yml>" --report <tool-migration-report-json>`
 
-- If the approved plan keeps almost every supported action except a few, you may instead use `--exclude` with the omitted action file names: `node scripts\convert-actions-to-tools.js <legacy-actions-folder> <new-tools-folder> --exclude "<skipped-action-file.mcs.yml>" --report <tool-migration-report-json>`
+- If the approved plan keeps almost every supported action except a few, you may instead use `--exclude` with the omitted action file names: `node "<pluginRoot>/scripts/convert-actions-to-tools.js" <legacy-actions-folder> <new-tools-folder> --exclude "<skipped-action-file.mcs.yml>" --report <tool-migration-report-json>`
 
 Do not use `--clean` with `--include` or `--exclude`; partial migration must not delete tools outside the selected subset.
 
@@ -208,6 +249,7 @@ The architect sub-agent must receive:
 6. The tool/action migration result, including migrated tools, intentionally excluded actions, unsupported skipped actions, and invalid selected actions.
 7. The user's decisions on the open gaps, as captured in the approved plan (step 5b).
 8. An explicit instruction to review every converted `WorkflowTool` description and improve generic classic-flow descriptions so they accurately explain when and why the modern agent should use the tool.
+9. The resolved absolute `pluginRoot`, so it reads the plugin's reference files from this installed copy.
 
 Tell the architect explicitly that the final migration artifact is the YAML written under the target project directory. If the describer report identifies gaps or uncertainties in understanding the original agent, discuss implementation strategies with the user before proceeding, and highlight those to the architect so it can make reasonable assumptions where needed to complete the YAML implementation, while listing any unresolved gaps in its final response.
 
