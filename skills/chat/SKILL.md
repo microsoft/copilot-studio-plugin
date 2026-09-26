@@ -18,6 +18,12 @@ invoked this skill)
 When this skill says to ask the user or to wait for them, use your client's structured question tool
 if it has one; otherwise ask in plain text and stop until they answer.
 
+If your client runs commands in a sandbox (for example Codex's default `workspace-write`), run the
+chat script and `pac` outside it, with escalated permissions the user approves. They need network
+access, and the script writes to the OS credential store and `~/.copilot-studio-cli`. Inside the
+sandbox the sign-in fails with a network error, or the token cache falls back to plaintext and asks
+for a new sign-in.
+
 ---
 
 ## Core Process
