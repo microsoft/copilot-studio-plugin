@@ -207,7 +207,9 @@ same `--conversation-id`, until the user is done.
   skill or the manage agent for those tasks.
 - **Auth footprint.** Access and refresh tokens are cached **per-agent in OS-native encrypted
   storage** (macOS Keychain / Windows DPAPI / Linux libsecret) via `@azure/msal-node-extensions`;
-  the on-disk `~/.copilot-studio-cli/chat-<AgentId>.cache.json` holds no readable token. The native
+  the on-disk `~/.copilot-studio-cli/chat-<AgentId>.cache.json` holds no readable token, except on
+  Linux when the Secret Service is locked or not running (for example in an SSH session after a
+  reboot): then msal-node-extensions writes the tokens to that file in plaintext, without a warning. The native
   dependencies are installed automatically into `<pluginData>` at session start. If they can't be
   loaded (e.g. a standalone run before provisioning), the script **falls back to a plaintext token
   cache** under `<pluginData>/token-cache/` and prints a warning. Nothing is written into the

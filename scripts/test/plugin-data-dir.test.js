@@ -99,3 +99,28 @@ test("the default plugin root is the directory above scripts/", () => {
   const home = makeHome({ pluginData: "/last", roots: { [pluginRoot]: "/own" } });
   assert.equal(resolvePluginDataDir({ env: {}, homedir: home }), "/own");
 });
+
+test("roots match a differently cased plugin root on Windows only", () => {
+  const home = makeHome({
+    pluginData: "/last",
+    roots: { "C:\\Users\\x\\plugins\\mcs-assistant\\1.0.2": "C:/data/own" },
+  });
+  assert.equal(
+    resolvePluginDataDir({
+      env: {},
+      homedir: home,
+      pluginRoot: "c:\\Users\\X\\plugins\\mcs-assistant\\1.0.2",
+      platform: "win32",
+    }),
+    "C:/data/own"
+  );
+  assert.equal(
+    resolvePluginDataDir({
+      env: {},
+      homedir: home,
+      pluginRoot: "c:\\Users\\X\\plugins\\mcs-assistant\\1.0.2",
+      platform: "linux",
+    }),
+    "/last"
+  );
+});

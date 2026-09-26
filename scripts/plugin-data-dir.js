@@ -24,12 +24,20 @@ function pathsFilePath(homedir = os.homedir()) {
   return path.join(homedir, ".copilot-studio-cli", "plugin-paths.json");
 }
 
+// realpathSync.native also returns the on-disk letter case, which the JS implementation doesn't.
 function realpathOrSelf(p) {
   try {
-    return fs.realpathSync(p);
+    return fs.realpathSync.native(p);
   } catch {
     return path.resolve(p);
   }
+}
+
+// Windows paths are case-insensitive, and clients don't agree on the case (`C:\` vs `c:\`).
+function sameRoot(a, b, platform) {
+  const x = realpathOrSelf(a);
+  const y = realpathOrSelf(b);
+  return platform === "win32" ? x.toLowerCase() === y.toLowerCase() : x === y;
 }
 
 function nonEmpty(value) {
@@ -45,13 +53,12 @@ function readPluginPaths(file) {
   }
 }
 
-function lookupRoot(roots, pluginRoot) {
+function lookupRoot(roots, pluginRoot, platform) {
   if (!roots || typeof roots !== "object" || Array.isArray(roots)) return null;
   const direct = nonEmpty(roots[pluginRoot]);
   if (direct) return direct;
-  const wanted = realpathOrSelf(pluginRoot);
   for (const [root, data] of Object.entries(roots)) {
-    if (nonEmpty(data) && realpathOrSelf(root) === wanted) return data;
+    if (nonEmpty(data) && sameRoot(root, pluginRoot, platform)) return data;
   }
   return null;
 }
@@ -60,6 +67,7 @@ function resolvePluginDataDir({
   env = process.env,
   homedir = os.homedir(),
   pluginRoot = DEFAULT_PLUGIN_ROOT,
+  platform = process.platform,
 } = {}) {
   const fromEnv =
     nonEmpty(env.CLAUDE_PLUGIN_DATA) ||
@@ -69,7 +77,7 @@ function resolvePluginDataDir({
 
   const parsed = readPluginPaths(pathsFilePath(homedir));
   if (parsed) {
-    const own = lookupRoot(parsed.roots, pluginRoot);
+    const own = lookupRoot(parsed.roots, pluginRoot, platform);
     if (own) return own;
     const last = nonEmpty(parsed.pluginData);
     if (last) return last;

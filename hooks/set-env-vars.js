@@ -32,16 +32,24 @@ try {
 }
 const roots =
   paths.roots && typeof paths.roots === 'object' && !Array.isArray(paths.roots) ? paths.roots : {};
-// Drop copies that were removed or replaced by an update (each version has its own root).
+// Drop copies that were removed or replaced by an update (each version has its own root). Only a
+// missing root counts: a sandboxed client may be unable to read another client's plugin folder.
 for (const root of Object.keys(roots)) {
-  if (root !== r && !fs.existsSync(root)) delete roots[root];
+  if (root === r) continue;
+  try {
+    fs.statSync(root);
+  } catch (err) {
+    if (err && err.code === 'ENOENT') delete roots[root];
+  }
 }
 roots[r] = d;
 fs.mkdirSync(pd, { recursive: true });
 const contents = JSON.stringify({ pluginData: d, pluginRoot: r, roots });
 const tmp = pathsFile + '.' + process.pid + '.tmp';
 try {
-  // Write and rename so a session starting at the same time never reads a half-written file.
+  // Write and rename so a session starting at the same time doesn't read a half-written file.
+  // If the rename fails (for example EPERM on Windows while the file is open), fall back to a
+  // plain write.
   fs.writeFileSync(tmp, contents);
   fs.renameSync(tmp, pathsFile);
 } catch {

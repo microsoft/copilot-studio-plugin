@@ -42,7 +42,6 @@
  */
 
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 const { PublicClientApplication } = require("@azure/msal-node");
 const { createSecureCachePlugin } = require("./secure-msal-cache");

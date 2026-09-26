@@ -14032,9 +14032,9 @@ ${serverError}`, correlationId);
 // src/secure-msal-cache.js
 var require_secure_msal_cache = __commonJS({
   "src/secure-msal-cache.js"(exports2, module2) {
-    var os2 = require("os");
+    var os = require("os");
     var path2 = require("path");
-    var CACHE_DIR = path2.join(os2.homedir(), ".copilot-studio-cli");
+    var CACHE_DIR = path2.join(os.homedir(), ".copilot-studio-cli");
     var SERVICE_NAME = "copilot-studio-cli";
     async function createSecureCachePlugin2(accountName, loadDependencies = () => require("@azure/msal-node-extensions")) {
       const {
@@ -14059,18 +14059,23 @@ var require_secure_msal_cache = __commonJS({
 var require_plugin_data_dir = __commonJS({
   "plugin-data-dir.js"(exports2, module2) {
     var fs2 = require("fs");
-    var os2 = require("os");
+    var os = require("os");
     var path2 = require("path");
     var DEFAULT_PLUGIN_ROOT = path2.dirname(__dirname);
-    function pathsFilePath(homedir = os2.homedir()) {
+    function pathsFilePath(homedir = os.homedir()) {
       return path2.join(homedir, ".copilot-studio-cli", "plugin-paths.json");
     }
     function realpathOrSelf(p) {
       try {
-        return fs2.realpathSync(p);
+        return fs2.realpathSync.native(p);
       } catch {
         return path2.resolve(p);
       }
+    }
+    function sameRoot(a, b, platform) {
+      const x = realpathOrSelf(a);
+      const y = realpathOrSelf(b);
+      return platform === "win32" ? x.toLowerCase() === y.toLowerCase() : x === y;
     }
     function nonEmpty(value) {
       return typeof value === "string" && value.trim() ? value : null;
@@ -14083,26 +14088,26 @@ var require_plugin_data_dir = __commonJS({
         return null;
       }
     }
-    function lookupRoot(roots, pluginRoot) {
+    function lookupRoot(roots, pluginRoot, platform) {
       if (!roots || typeof roots !== "object" || Array.isArray(roots)) return null;
       const direct = nonEmpty(roots[pluginRoot]);
       if (direct) return direct;
-      const wanted = realpathOrSelf(pluginRoot);
       for (const [root, data] of Object.entries(roots)) {
-        if (nonEmpty(data) && realpathOrSelf(root) === wanted) return data;
+        if (nonEmpty(data) && sameRoot(root, pluginRoot, platform)) return data;
       }
       return null;
     }
     function resolvePluginDataDir2({
       env = process.env,
-      homedir = os2.homedir(),
-      pluginRoot = DEFAULT_PLUGIN_ROOT
+      homedir = os.homedir(),
+      pluginRoot = DEFAULT_PLUGIN_ROOT,
+      platform = process.platform
     } = {}) {
       const fromEnv = nonEmpty(env.CLAUDE_PLUGIN_DATA) || nonEmpty(env.COPILOT_PLUGIN_DATA) || nonEmpty(env.PLUGIN_DATA);
       if (fromEnv) return fromEnv;
       const parsed = readPluginPaths(pathsFilePath(homedir));
       if (parsed) {
-        const own = lookupRoot(parsed.roots, pluginRoot);
+        const own = lookupRoot(parsed.roots, pluginRoot, platform);
         if (own) return own;
         const last = nonEmpty(parsed.pluginData);
         if (last) return last;
@@ -14115,7 +14120,6 @@ var require_plugin_data_dir = __commonJS({
 
 // src/verify-knowledge-access.js
 var fs = require("fs");
-var os = require("os");
 var path = require("path");
 var { PublicClientApplication } = require_msal_node();
 var { createSecureCachePlugin } = require_secure_msal_cache();
