@@ -24,14 +24,17 @@ codex plugin marketplace add microsoft/copilot-studio-plugin
 codex plugin add mcs-assistant@copilot-studio-plugin
 ```
 
-Then start Codex, open `/hooks` and trust the plugin's `SessionStart` hook. Codex skips plugin hooks
-until you trust them, and asks again when an update changes the hook. The hook installs the native
-modules that keep sign-in tokens in the OS credential store; without them the chat skill falls back to a
-plaintext token cache.
+Then start Codex, open `/hooks` and trust the plugin's `SessionStart` hook before your first message
+(if you already sent one, start a new session). Codex skips plugin hooks until you trust them, and
+asks again when an update changes the hook. The hook installs the native modules that keep sign-in
+tokens in the OS credential store; without them the chat skill falls back to a plaintext token
+cache.
 
 Codex's default sandbox (`workspace-write`) blocks network access and writes outside the workspace.
 `pac`, the chat and knowledge-access scripts and the add-skill gallery need both, so the skills run
-those commands with escalated permissions, which Codex asks you to approve.
+those commands with escalated permissions, which Codex asks you to approve. With
+`approval_policy = "never"` Codex can't ask; use full access (`--sandbox danger-full-access`) for
+these sessions instead.
 
 Platform notes:
 

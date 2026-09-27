@@ -46,7 +46,8 @@ existing sub-agent, send it to that same sub-agent (Claude Code: SendMessage or 
 `followup_task`) so it keeps its context; don't start a new one.
 
 **Model choice.** Where a step names a model tier, map it to your client's sub-agent settings (Claude
-Code: the Task tool's `model`; Codex: `spawn_agent`'s `model` and `reasoning_effort`). "The latest
+Code: the Task tool's `model`; Codex: `spawn_agent`'s `model` and `reasoning_effort`, with
+`fork_turns: "none"`, since the agent file and the task are the whole brief). "The latest
 best of the bests AI model, with high reasoning effort" means your client's most capable model with
 high reasoning; "the latest good, mid-tier AI model" means a solid mid-tier model at default effort.
 If the user named a model or reasoning effort for the sub-agents in their request, use that instead
@@ -63,7 +64,9 @@ Where this workflow asks the user something, use your client's structured questi
 `pac` and the plugin's scripts need network access and write outside the workspace (the PAC auth
 profile, the OS credential store, `~/.copilot-studio-cli`). If your client runs commands in a sandbox
 (for example Codex's default `workspace-write`), run them with escalated permissions the user
-approves, and tell each sub-agent to do the same.
+approves, and tell each sub-agent to do the same. If the client can't ask for approval (Codex with
+`approval_policy = "never"`), tell the user which commands need network access and stop before the
+first `pac` step.
 
 ---
 
