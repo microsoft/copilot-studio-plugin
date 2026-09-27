@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"var r=process.env.CLAUDE_PLUGIN_ROOT||process.env.PLUGIN_ROOT;if(r){var p=require('path');require(p.join(r,'hooks','set-env-vars.js'))}\"",
+            "command": "node -e \"var p=require('path'),f=require('fs'),r=[process.env.PLUGIN_ROOT,process.env.CLAUDE_PLUGIN_ROOT].find(function(x){return x&&f.existsSync(p.join(x,'hooks','set-env-vars.js'))});if(r){require(p.join(r,'hooks','set-env-vars.js'))}\"",
             "bash": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/set-env-vars.js\"",
             "powershell": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/set-env-vars.js\""
           }
