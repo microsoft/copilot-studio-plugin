@@ -2,8 +2,11 @@
  * Resolve the plugin's persistent data directory (native deps, chat-config.json, token cache).
  *
  * Order:
- *   1. CLAUDE_PLUGIN_DATA / COPILOT_PLUGIN_DATA / PLUGIN_DATA (set for hooks; usually not for
- *      commands the model runs).
+ *   1. CLAUDE_PLUGIN_DATA / COPILOT_PLUGIN_DATA / PLUGIN_DATA. Every client sets them for hooks;
+ *      only Claude Code also has them in the commands the model runs, because its hook exports
+ *      them into every shell of the session. Skipped when the *_PLUGIN_ROOT partner names another
+ *      plugin root, as it does for a client started from such a shell (for example `copilot` run
+ *      inside Claude Code), which inherits Claude's pair.
  *   2. ~/.copilot-studio-cli/plugin-paths.json `roots[<this plugin root>]`, written by the
  *      SessionStart hook of this installed copy.
  *   3. The same file's top-level `pluginData`, written by whichever client (Claude Code, Codex,
@@ -63,17 +66,23 @@ function lookupRoot(roots, pluginRoot, platform) {
   return null;
 }
 
+const ENV_PAIRS = [
+  ["CLAUDE_PLUGIN_DATA", "CLAUDE_PLUGIN_ROOT"],
+  ["COPILOT_PLUGIN_DATA", "COPILOT_PLUGIN_ROOT"],
+  ["PLUGIN_DATA", "PLUGIN_ROOT"],
+];
+
 function resolvePluginDataDir({
   env = process.env,
   homedir = os.homedir(),
   pluginRoot = DEFAULT_PLUGIN_ROOT,
   platform = process.platform,
 } = {}) {
-  const fromEnv =
-    nonEmpty(env.CLAUDE_PLUGIN_DATA) ||
-    nonEmpty(env.COPILOT_PLUGIN_DATA) ||
-    nonEmpty(env.PLUGIN_DATA);
-  if (fromEnv) return fromEnv;
+  for (const [dataVar, rootVar] of ENV_PAIRS) {
+    const data = nonEmpty(env[dataVar]);
+    const root = nonEmpty(env[rootVar]);
+    if (data && (!root || sameRoot(root, pluginRoot, platform))) return data;
+  }
 
   const parsed = readPluginPaths(pathsFilePath(homedir));
   if (parsed) {

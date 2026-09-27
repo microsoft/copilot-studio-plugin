@@ -124,3 +124,76 @@ test("roots match a differently cased plugin root on Windows only", () => {
     "/last"
   );
 });
+
+test("an env var whose plugin root names another copy is skipped", () => {
+  const home = makeHome({ pluginData: "/last", roots: { "/copilot-root": "/copilot-data" } });
+  // `copilot` started from a Claude Code shell inherits Claude's exported pair.
+  const inherited = { CLAUDE_PLUGIN_DATA: "/claude-data", CLAUDE_PLUGIN_ROOT: "/claude-root" };
+  assert.equal(
+    resolvePluginDataDir({ env: inherited, homedir: home, pluginRoot: "/copilot-root" }),
+    "/copilot-data"
+  );
+  assert.equal(
+    resolvePluginDataDir({ env: inherited, homedir: home, pluginRoot: "/claude-root" }),
+    "/claude-data"
+  );
+  assert.equal(
+    resolvePluginDataDir({
+      env: {
+        ...inherited,
+        COPILOT_PLUGIN_DATA: "/copilot-env",
+        COPILOT_PLUGIN_ROOT: "/copilot-root",
+      },
+      homedir: home,
+      pluginRoot: "/copilot-root",
+    }),
+    "/copilot-env"
+  );
+});
+
+test("env plugin roots match through symlinks", () => {
+  const home = makeHome();
+  const realRoot = path.join(home, "real-root");
+  const linkRoot = path.join(home, "link-root");
+  fs.mkdirSync(realRoot);
+  fs.symlinkSync(realRoot, linkRoot, "dir");
+  assert.equal(
+    resolvePluginDataDir({
+      env: { CLAUDE_PLUGIN_DATA: "/claude-data", CLAUDE_PLUGIN_ROOT: linkRoot },
+      homedir: home,
+      pluginRoot: realRoot,
+    }),
+    "/claude-data"
+  );
+});
+
+test("a skipped env var falls through to pluginData and then the home dir", () => {
+  const inherited = { CLAUDE_PLUGIN_DATA: "/claude-data", CLAUDE_PLUGIN_ROOT: "/claude-root" };
+  const home = makeHome({ pluginData: "/last" });
+  assert.equal(
+    resolvePluginDataDir({ env: inherited, homedir: home, pluginRoot: "/mine" }),
+    "/last"
+  );
+  const empty = makeHome();
+  assert.equal(
+    resolvePluginDataDir({ env: inherited, homedir: empty, pluginRoot: "/mine" }),
+    path.join(empty, ".copilot-studio-cli")
+  );
+});
+
+test("an env plugin root that differs only in case matches on Windows only", () => {
+  const home = makeHome({ pluginData: "/last" });
+  const env = {
+    CLAUDE_PLUGIN_DATA: "C:/data/claude",
+    CLAUDE_PLUGIN_ROOT: "C:\\Users\\x\\plugins\\mcs-assistant\\1.0.2",
+  };
+  const pluginRoot = "c:\\Users\\X\\plugins\\mcs-assistant\\1.0.2";
+  assert.equal(
+    resolvePluginDataDir({ env, homedir: home, pluginRoot, platform: "win32" }),
+    "C:/data/claude"
+  );
+  assert.equal(
+    resolvePluginDataDir({ env, homedir: home, pluginRoot, platform: "linux" }),
+    "/last"
+  );
+});

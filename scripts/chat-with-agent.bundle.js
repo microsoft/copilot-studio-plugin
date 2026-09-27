@@ -37303,14 +37303,22 @@ var require_plugin_data_dir = __commonJS({
       }
       return null;
     }
+    var ENV_PAIRS = [
+      ["CLAUDE_PLUGIN_DATA", "CLAUDE_PLUGIN_ROOT"],
+      ["COPILOT_PLUGIN_DATA", "COPILOT_PLUGIN_ROOT"],
+      ["PLUGIN_DATA", "PLUGIN_ROOT"]
+    ];
     function resolvePluginDataDir2({
       env = process.env,
       homedir = os.homedir(),
       pluginRoot = DEFAULT_PLUGIN_ROOT,
       platform = process.platform
     } = {}) {
-      const fromEnv = nonEmpty(env.CLAUDE_PLUGIN_DATA) || nonEmpty(env.COPILOT_PLUGIN_DATA) || nonEmpty(env.PLUGIN_DATA);
-      if (fromEnv) return fromEnv;
+      for (const [dataVar, rootVar] of ENV_PAIRS) {
+        const data = nonEmpty(env[dataVar]);
+        const root = nonEmpty(env[rootVar]);
+        if (data && (!root || sameRoot(root, pluginRoot, platform))) return data;
+      }
       const parsed = readPluginPaths(pathsFilePath(homedir));
       if (parsed) {
         const own = lookupRoot(parsed.roots, pluginRoot, platform);
