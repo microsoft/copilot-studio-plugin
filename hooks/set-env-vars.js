@@ -6,9 +6,16 @@ const os = require('os');
 // __dirname is the hooks/ directory; the plugin root is one level up
 const r = p.resolve(__dirname, '..');
 // Claude Code sets CLAUDE_PLUGIN_DATA, GitHub Copilot CLI COPILOT_PLUGIN_DATA, and Codex both
-// PLUGIN_DATA and CLAUDE_PLUGIN_DATA.
-const d =
-  process.env.CLAUDE_PLUGIN_DATA || process.env.COPILOT_PLUGIN_DATA || process.env.PLUGIN_DATA;
+// PLUGIN_DATA and CLAUDE_PLUGIN_DATA. A variable whose *_PLUGIN_ROOT partner names another copy is
+// skipped, the same way the scripts resolve it: a client started from a Claude Code shell inherits
+// Claude's pair.
+let d;
+try {
+  d = require(p.join(r, 'scripts', 'plugin-data-dir.js')).pluginDataFromEnv({ pluginRoot: r });
+} catch {
+  // A damaged install: fall back to the plain order rather than fail the session start.
+  d = process.env.CLAUDE_PLUGIN_DATA || process.env.COPILOT_PLUGIN_DATA || process.env.PLUGIN_DATA;
+}
 const e = process.env.CLAUDE_ENV_FILE;
 const pd = p.join(os.homedir(), '.copilot-studio-cli');
 const pathsFile = p.join(pd, 'plugin-paths.json');

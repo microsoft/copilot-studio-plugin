@@ -37308,9 +37308,8 @@ var require_plugin_data_dir = __commonJS({
       ["COPILOT_PLUGIN_DATA", "COPILOT_PLUGIN_ROOT"],
       ["PLUGIN_DATA", "PLUGIN_ROOT"]
     ];
-    function resolvePluginDataDir2({
+    function pluginDataFromEnv({
       env = process.env,
-      homedir = os.homedir(),
       pluginRoot = DEFAULT_PLUGIN_ROOT,
       platform = process.platform
     } = {}) {
@@ -37319,6 +37318,16 @@ var require_plugin_data_dir = __commonJS({
         const root = nonEmpty(env[rootVar]);
         if (data && (!root || sameRoot(root, pluginRoot, platform))) return data;
       }
+      return null;
+    }
+    function resolvePluginDataDir2({
+      env = process.env,
+      homedir = os.homedir(),
+      pluginRoot = DEFAULT_PLUGIN_ROOT,
+      platform = process.platform
+    } = {}) {
+      const fromEnv = pluginDataFromEnv({ env, pluginRoot, platform });
+      if (fromEnv) return fromEnv;
       const parsed = readPluginPaths(pathsFilePath(homedir));
       if (parsed) {
         const own = lookupRoot(parsed.roots, pluginRoot, platform);
@@ -37328,7 +37337,7 @@ var require_plugin_data_dir = __commonJS({
       }
       return path2.join(homedir, ".copilot-studio-cli");
     }
-    module2.exports = { pathsFilePath, readPluginPaths, resolvePluginDataDir: resolvePluginDataDir2 };
+    module2.exports = { pathsFilePath, pluginDataFromEnv, readPluginPaths, resolvePluginDataDir: resolvePluginDataDir2 };
   }
 });
 

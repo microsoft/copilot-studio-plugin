@@ -72,9 +72,9 @@ const ENV_PAIRS = [
   ["PLUGIN_DATA", "PLUGIN_ROOT"],
 ];
 
-function resolvePluginDataDir({
+// The SessionStart hook uses this too, so it records the same data dir the scripts resolve.
+function pluginDataFromEnv({
   env = process.env,
-  homedir = os.homedir(),
   pluginRoot = DEFAULT_PLUGIN_ROOT,
   platform = process.platform,
 } = {}) {
@@ -83,6 +83,17 @@ function resolvePluginDataDir({
     const root = nonEmpty(env[rootVar]);
     if (data && (!root || sameRoot(root, pluginRoot, platform))) return data;
   }
+  return null;
+}
+
+function resolvePluginDataDir({
+  env = process.env,
+  homedir = os.homedir(),
+  pluginRoot = DEFAULT_PLUGIN_ROOT,
+  platform = process.platform,
+} = {}) {
+  const fromEnv = pluginDataFromEnv({ env, pluginRoot, platform });
+  if (fromEnv) return fromEnv;
 
   const parsed = readPluginPaths(pathsFilePath(homedir));
   if (parsed) {
@@ -94,4 +105,4 @@ function resolvePluginDataDir({
   return path.join(homedir, ".copilot-studio-cli");
 }
 
-module.exports = { pathsFilePath, readPluginPaths, resolvePluginDataDir };
+module.exports = { pathsFilePath, pluginDataFromEnv, readPluginPaths, resolvePluginDataDir };

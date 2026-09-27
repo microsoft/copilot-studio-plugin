@@ -167,3 +167,26 @@ test("records this copy before npm install runs", posixOnly, () => {
   const seenByNpm = JSON.parse(fs.readFileSync(fx.npmLog + ".paths", "utf8"));
   assert.equal(seenByNpm.roots[PLUGIN_ROOT], fx.data);
 });
+
+test("skips a data dir whose plugin root names another copy", posixOnly, () => {
+  // Copilot CLI or Codex started from a Claude Code shell inherits Claude's exported pair.
+  const inherited = { CLAUDE_PLUGIN_DATA: "/claude-data", CLAUDE_PLUGIN_ROOT: "/claude-root" };
+  const fx = makeFixture();
+  let res = runHook(fx, { ...inherited, COPILOT_PLUGIN_DATA: fx.data });
+  assert.equal(res.status, 0, res.stderr);
+  let paths = JSON.parse(fs.readFileSync(fx.pathsFile, "utf8"));
+  assert.equal(paths.pluginData, fx.data);
+  assert.equal(paths.roots[PLUGIN_ROOT], fx.data);
+
+  const only = makeFixture();
+  res = runHook(only, inherited);
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(fs.existsSync(only.pathsFile), false);
+  assert.equal(npmCalls(only), 0);
+
+  const own = makeFixture();
+  res = runHook(own, { CLAUDE_PLUGIN_DATA: own.data, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT });
+  assert.equal(res.status, 0, res.stderr);
+  paths = JSON.parse(fs.readFileSync(own.pathsFile, "utf8"));
+  assert.equal(paths.roots[PLUGIN_ROOT], own.data);
+});
