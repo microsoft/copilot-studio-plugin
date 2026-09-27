@@ -190,3 +190,173 @@ test("skips a data dir whose plugin root names another copy", posixOnly, () => {
   paths = JSON.parse(fs.readFileSync(own.pathsFile, "utf8"));
   assert.equal(paths.roots[PLUGIN_ROOT], own.data);
 });
+
+// Two installed copies (their own hooks/ and scripts/) whose hooks start at the same moment.
+function makeCopy(fx, name) {
+  const copy = path.join(fx.root, name);
+  fs.mkdirSync(path.join(copy, "hooks"), { recursive: true });
+  fs.mkdirSync(path.join(copy, "scripts"), { recursive: true });
+  fs.copyFileSync(HOOK, path.join(copy, "hooks", "set-env-vars.js"));
+  for (const f of ["plugin-data-dir.js", "native-deps.json"]) {
+    fs.copyFileSync(path.resolve(__dirname, "..", f), path.join(copy, "scripts", f));
+  }
+  return { hook: path.join(copy, "hooks", "set-env-vars.js"), root: fs.realpathSync(copy) };
+}
+
+function startHook(fx, hook, data) {
+  return new Promise((resolve) => {
+    const child = cp.spawn(process.execPath, [hook], {
+      env: {
+        HOME: fx.home,
+        USERPROFILE: fx.home,
+        PATH: [fx.bin, "/usr/bin", "/bin"].join(path.delimiter),
+        FAKE_NPM_LOG: fx.npmLog,
+        FAKE_NPM_EXIT: fx.npmExit,
+        FAKE_PATHS_FILE: fx.pathsFile,
+        PLUGIN_DATA: data,
+      },
+      stdio: "ignore",
+      timeout: 15000,
+    });
+    child.on("exit", (code, signal) => {
+      assert.equal(signal, null, "hook timed out");
+      resolve(code);
+    });
+  });
+}
+
+test("concurrent session starts keep both copies under roots", posixOnly, async () => {
+  for (let i = 0; i < 20; i++) {
+    const fx = makeFixture();
+    const a = makeCopy(fx, "copy-a");
+    const b = makeCopy(fx, "copy-b");
+    await Promise.all([startHook(fx, a.hook, "/data-a"), startHook(fx, b.hook, "/data-b")]);
+    const roots = JSON.parse(fs.readFileSync(fx.pathsFile, "utf8")).roots;
+    assert.deepEqual(roots, { [a.root]: "/data-a", [b.root]: "/data-b" }, `run ${i}`);
+  }
+});
+
+test("a stale lock is taken over and no lock is left behind", posixOnly, () => {
+  const fx = makeFixture();
+  const lockFile = fx.pathsFile + ".lock";
+  fs.mkdirSync(path.dirname(lockFile), { recursive: true });
+  fs.writeFileSync(lockFile, "");
+  const old = new Date(Date.now() - 60000);
+  fs.utimesSync(lockFile, old, old);
+  const res = runHook(fx, { CLAUDE_PLUGIN_DATA: fx.data });
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(fx.pathsFile, "utf8")).roots[PLUGIN_ROOT], fx.data);
+  assert.equal(fs.existsSync(lockFile), false);
+});
+
+// Loads the hook with fs.unlinkSync failing with EPERM for the lock, as when another process
+// (an antivirus scanner on Windows) holds it.
+function runHookWithStuckLock(fx, env) {
+  const wrapper = path.join(fx.root, "stuck-lock.js");
+  fs.writeFileSync(
+    wrapper,
+    'const fs = require("fs");\n' +
+      "const unlink = fs.unlinkSync;\n" +
+      "const rename = fs.renameSync;\n" +
+      'const deny = () => Object.assign(new Error("EPERM"), { code: "EPERM" });\n' +
+      'fs.unlinkSync = (p) => { if (String(p).includes(".lock")) throw deny(); return unlink(p); };\n' +
+      'fs.renameSync = (a, b) => { if (String(a).endsWith(".lock")) throw deny(); return rename(a, b); };\n' +
+      `require(${JSON.stringify(HOOK)});\n`
+  );
+  return cp.spawnSync(process.execPath, [wrapper], {
+    encoding: "utf8",
+    timeout: 10000,
+    env: {
+      HOME: fx.home,
+      USERPROFILE: fx.home,
+      PATH: [fx.bin, "/usr/bin", "/bin"].join(path.delimiter),
+      FAKE_NPM_LOG: fx.npmLog,
+      FAKE_NPM_EXIT: fx.npmExit,
+      FAKE_PATHS_FILE: fx.pathsFile,
+      ...env,
+    },
+  });
+}
+
+test("a lock that can't be removed delays the hook by at most a few seconds", posixOnly, () => {
+  for (const age of [60000, 0]) {
+    const fx = makeFixture();
+    const lockFile = fx.pathsFile + ".lock";
+    fs.mkdirSync(path.dirname(lockFile), { recursive: true });
+    fs.writeFileSync(lockFile, "");
+    const when = new Date(Date.now() - age);
+    fs.utimesSync(lockFile, when, when);
+    const started = Date.now();
+    const res = runHookWithStuckLock(fx, { CLAUDE_PLUGIN_DATA: fx.data });
+    assert.equal(res.status, 0, res.stderr);
+    assert.ok(Date.now() - started < 6000, `took ${Date.now() - started} ms`);
+    assert.equal(JSON.parse(fs.readFileSync(fx.pathsFile, "utf8")).roots[PLUGIN_ROOT], fx.data);
+  }
+});
+
+test("concurrent session starts over a stale lock keep both copies", posixOnly, async () => {
+  for (let i = 0; i < 10; i++) {
+    const fx = makeFixture();
+    const a = makeCopy(fx, "copy-a");
+    const b = makeCopy(fx, "copy-b");
+    const lockFile = fx.pathsFile + ".lock";
+    fs.mkdirSync(path.dirname(lockFile), { recursive: true });
+    fs.writeFileSync(lockFile, "");
+    const old = new Date(Date.now() - 60000);
+    fs.utimesSync(lockFile, old, old);
+    await Promise.all([startHook(fx, a.hook, "/data-a"), startHook(fx, b.hook, "/data-b")]);
+    const roots = JSON.parse(fs.readFileSync(fx.pathsFile, "utf8")).roots;
+    assert.deepEqual(roots, { [a.root]: "/data-a", [b.root]: "/data-b" }, `run ${i}`);
+    assert.equal(fs.existsSync(lockFile), false);
+  }
+});
+
+const asRoot = typeof process.getuid === "function" && process.getuid() === 0;
+
+test(
+  "a read-only home still exports the env vars",
+  { skip: posixOnly.skip || (asRoot && "root can write anyway") },
+  () => {
+    const fx = makeFixture();
+    const envFile = path.join(fx.root, "claude-env");
+    fs.chmodSync(fx.home, 0o555);
+    try {
+      const res = runHook(fx, { CLAUDE_PLUGIN_DATA: fx.data, CLAUDE_ENV_FILE: envFile });
+      assert.equal(res.status, 0, res.stderr);
+      assert.match(res.stderr, /could not record the plugin paths/);
+      assert.match(fs.readFileSync(envFile, "utf8"), /export CLAUDE_PLUGIN_DATA=/);
+      assert.equal(npmCalls(fx), 1);
+    } finally {
+      fs.chmodSync(fx.home, 0o755);
+    }
+  }
+);
+
+test("a lock dated in the future is taken over as stale", posixOnly, () => {
+  const fx = makeFixture();
+  const lockFile = fx.pathsFile + ".lock";
+  fs.mkdirSync(path.dirname(lockFile), { recursive: true });
+  fs.writeFileSync(lockFile, "");
+  const future = new Date(Date.now() + 60000);
+  fs.utimesSync(lockFile, future, future);
+  const started = Date.now();
+  const res = runHook(fx, { CLAUDE_PLUGIN_DATA: fx.data });
+  assert.equal(res.status, 0, res.stderr);
+  assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+  assert.equal(fs.existsSync(lockFile), false);
+});
+
+test("the hook waits for a held lock and records after it is released", posixOnly, async () => {
+  const fx = makeFixture();
+  const a = makeCopy(fx, "copy-a");
+  const lockFile = fx.pathsFile + ".lock";
+  fs.mkdirSync(path.dirname(lockFile), { recursive: true });
+  fs.writeFileSync(lockFile, "");
+  const started = Date.now();
+  const done = startHook(fx, a.hook, "/data-a");
+  setTimeout(() => fs.unlinkSync(lockFile), 400);
+  assert.equal(await done, 0);
+  const took = Date.now() - started;
+  assert.ok(took >= 400 && took < 2900, `took ${took} ms`);
+  assert.equal(JSON.parse(fs.readFileSync(fx.pathsFile, "utf8")).roots[a.root], "/data-a");
+});
