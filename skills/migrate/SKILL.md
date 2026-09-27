@@ -98,7 +98,7 @@ Use the `pluginRoot` resolved in "Locate the plugin files" for both checks.
 #### Legacy plugin
 
 The current plugin, `mcs-assistant@copilot-studio-plugin`, supports modern-orchestration agents. The legacy plugin, `copilot-studio@skills-for-copilot-studio`, supports only classic orchestration and may conflict with the current plugin.
-1. Find the installed plugins cache directory. Claude Code and Codex both install plugins as `<cache>/<marketplace>/<plugin>/<version>`, so it is three directory levels above `pluginRoot` (for example `~/.claude/plugins/cache` or `~/.codex/plugins/cache`). If `pluginRoot` doesn't follow that layout (for example a local development copy), skip this check.
+1. Find the directory that holds one folder per plugin marketplace. Claude Code and Codex install plugins as `<cache>/<marketplace>/<plugin>/<version>`, so it is three directory levels above `pluginRoot` (for example `~/.claude/plugins/cache` or `~/.codex/plugins/cache`). GitHub Copilot CLI installs them as `~/.copilot/installed-plugins/<marketplace>/<plugin>`, with no version folder, so there it is two levels above `pluginRoot`. If `pluginRoot` follows neither layout (for example a local development copy), skip this check.
 2. Check whether that directory contains `skills-for-copilot-studio`.
 3. If it is present, pause and warn the user that removing or disabling the legacy plugin is recommended. Ask the user whether they want to remove or disable it, but continue the migration if they choose not to.
 
