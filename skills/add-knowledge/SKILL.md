@@ -12,9 +12,26 @@ agentic-loop** agent by writing modern `capabilities/knowledge` YAML. You discov
 classify the requested source, normalize its URL, and write a `*.mcs.yml` component. You never invent
 behavior the files do not support.
 
-Initial request: $ARGUMENTS
+Initial request: $ARGUMENTS (or, if your client does not substitute it, the user's request that
+invoked this skill)
 
 Supports four source kinds: **Public Website**, **SharePoint**, **OneDrive**, and **Uploaded file**.
+
+## Locate the plugin files
+
+Paths below are relative to the `mcs-assistant` plugin root (`<pluginRoot>`). Resolve it once and use
+absolute paths from then on:
+
+1. **From this skill's own location.** This file is `<pluginRoot>/skills/add-knowledge/SKILL.md`, so the
+   plugin root is two directories above it. Use the base directory or file path your client shows for
+   this skill.
+2. **Otherwise from `plugin-paths.json`.** Read
+   `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and use its `pluginRoot`. The
+   file is rewritten by whichever client (Claude Code, Codex, GitHub Copilot CLI) started a session
+   last, so it can point to a different installed copy of the plugin.
+
+Check that `<pluginRoot>/reference/knowledge-schema.md` exists before using it. If it doesn't, try the next option,
+then `Glob` for that file under the installed plugin directory.
 
 ## Authoritative schema — read this first
 
@@ -24,11 +41,7 @@ shared reference — **`reference/knowledge-schema.md`**. It is the source of tr
 `copilot-studio-architect` agent uses the same file, so the two never drift. **Read it before writing
 any YAML** and follow it exactly.
 
-Resolve its path via the plugin root: read
-`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` for the
-current `mcs-assistant` plugin, then read `path.join(pluginRoot, 'reference', 'knowledge-schema.md')`.
-If `plugin-paths.json` cannot be read, fall back to locating `reference/knowledge-schema.md` under the
-installed plugin directory.
+Its path is `<pluginRoot>/reference/knowledge-schema.md` (see "Locate the plugin files").
 
 ---
 
@@ -39,7 +52,7 @@ installed plugin directory.
 1. Auto-discover the cloned agent with `Glob: **/settings.mcs.yml`. A cloned agentic-loop workspace
    contains `settings.mcs.yml` at its root. **Never hardcode an agent name.**
 2. If none is found, tell the user this skill needs a **locally-cloned agentic-loop agent** (clone
-   one with `pac copilot clone`, or use `/migrate`). Stop.
+   one with `pac copilot clone`, or use the `migrate` skill). Stop.
 3. If several are found, ask the user which agent to add the knowledge to.
 4. Read the agent's **`schemaName`** from `settings.mcs.yml` (e.g. `crbab_guitarcoach_dcF_b3`) — it is
    the filename prefix for source-backed knowledge components.
@@ -48,7 +61,7 @@ installed plugin directory.
 
 ### 2. Parse the arguments
 
-Extract from `$ARGUMENTS`:
+Extract from the initial request:
 
 - The **URL** or **local file path** of the source.
 - An optional **name** and/or **description**.
@@ -110,17 +123,17 @@ at runtime using **each end user's** permissions. This check runs as the author,
 confirms **your** access only — it does **not** guarantee end users of the agent can access the item.
 Always pair the result with a reminder to ensure end users have access in SharePoint/OneDrive.
 
-**How to run it.** Resolve `pluginRoot` from
-`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` (as in step "Authoritative
-schema" above), then:
+**How to run it.** With `<pluginRoot>` from "Locate the plugin files" above:
 
 ```bash
 node "<pluginRoot>/scripts/verify-knowledge-access.bundle.js" --agent-dir "<agentDir>" "<url>"
 ```
 
+- In a sandboxed client (for example Codex's default `workspace-write`), run it outside the sandbox
+  with escalated permissions the user approves: it needs network access and the OS credential store.
 - Add `--dry-run` to resolve the plan (encoded share id, Graph endpoint, scopes, `needsClientId`)
   **without** authenticating — useful to check setup first.
-- It reuses the same per-agent Entra **public-client app id** the `/chat` skill saves. That app
+- It reuses the same per-agent Entra **public-client app id** the `chat` skill saves. That app
   registration must **also** have the delegated Microsoft Graph permission **`Files.ReadWrite`**
   consented, and must be an app the user **owns** in the tenant. Microsoft documents
   `Files.ReadWrite` as the least-privileged delegated permission for `GET /shares`; although this
@@ -135,7 +148,7 @@ node "<pluginRoot>/scripts/verify-knowledge-access.bundle.js" --agent-dir "<agen
 - **`AADSTS65002` in an `error`** means the `--client-id` is a Microsoft **first-party/sample** app,
   which cannot obtain Graph tokens. Tell the user to supply **their own** Entra app registration
   (single-tenant, public client flows enabled, delegated Graph `Files.ReadWrite` consented). An app
-  id that works for `/chat` (preauthorized for the Power Platform API) is **not** automatically valid
+  id that works for the `chat` skill (preauthorized for the Power Platform API) is **not** automatically valid
   for Graph. This is a setup issue, not a failure of the source — continue.
 
 **Interpreting the JSON `status`:**

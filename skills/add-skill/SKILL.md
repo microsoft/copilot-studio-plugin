@@ -21,7 +21,24 @@ bundle skills) so the on-disk layout matches a Copilot Studio portal import. Imp
 materializes files on disk; **publishing to the cloud is done from the VS Code Copilot Studio
 extension** (Agent Changes view / sync push) afterward - this skill never pushes.
 
-Initial request: $ARGUMENTS
+Initial request: $ARGUMENTS (or, if your client does not substitute it, the user's request that
+invoked this skill)
+
+## Locate the plugin files
+
+Paths below are relative to the `mcs-assistant` plugin root (`<pluginRoot>`). Resolve it once and use
+absolute paths from then on:
+
+1. **From this skill's own location.** This file is `<pluginRoot>/skills/add-skill/SKILL.md`, so the
+   plugin root is two directories above it. Use the base directory or file path your client shows for
+   this skill.
+2. **Otherwise from `plugin-paths.json`.** Read
+   `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and use its `pluginRoot`. The
+   file is rewritten by whichever client (Claude Code, Codex, GitHub Copilot CLI) started a session
+   last, so it can point to a different installed copy of the plugin.
+
+Check that the file you need (`reference/skill-schema.md`, `scripts/add-skill.js`) exists before using it. If it doesn't, try the next option,
+then `Glob` for that file under the installed plugin directory.
 
 ## Authoritative schema — read this before importing
 
@@ -31,25 +48,15 @@ naming, and schema-name conventions live in a single shared reference —
 `scripts/add-skill.js` use the same file, so the three never drift. **Read it before step 5** and
 follow it exactly.
 
-Resolve its path via the plugin root: read
-`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` for the
-current `mcs-assistant` plugin, then read `path.join(pluginRoot, 'reference', 'skill-schema.md')`.
-If `plugin-paths.json` cannot be read, fall back to locating `reference/skill-schema.md` under the
-installed plugin directory.
+Its path is `<pluginRoot>/reference/skill-schema.md` (see "Locate the plugin files").
 
 ---
 
 ## 1. Locate the helper script (non-blocking)
 
-Resolve `scripts/add-skill.js` inside this installed plugin. In order:
-
-1. Read `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and use its
-   `pluginRoot` -> `path.join(pluginRoot, 'scripts', 'add-skill.js')`.
-2. If that file is unavailable, fall back to `${CLAUDE_PLUGIN_ROOT}/scripts/add-skill.js` when the env
-   var is set.
-3. Otherwise `Glob: **/scripts/add-skill.js` under the plugin directory.
-
-Use this absolute path for every `node` invocation below.
+The helper is `<pluginRoot>/scripts/add-skill.js`, resolved as in "Locate the plugin files" (if
+`${CLAUDE_PLUGIN_ROOT}` is set, `${CLAUDE_PLUGIN_ROOT}/scripts/add-skill.js` also works). Use this
+absolute path for every `node` invocation below.
 
 ## 2. Choose the source (blocking)
 
@@ -76,8 +83,8 @@ about paths on the **gallery** branch until it is time to pick a destination (st
 2. Validate it exists and is a single `SKILL.md` (Markdown) or a `.zip`. If it is neither, tell the
    user what is accepted and stop.
 3. Confirm the resolved absolute path. For a `SKILL.md`, its containing folder is the `--src` for
-   import (step 5). For a `.zip`, you cannot extract it yourself - the only shell command available
-   here is the `add-skill.js` script. Ask the user to extract it and give you the path to the
+   import (step 5). For a `.zip`, don't extract it yourself - this skill only runs the `add-skill.js`
+   script. Ask the user to extract it and give you the path to the
    extracted folder (the one holding `SKILL.md`), then use that as `--src`.
 
 ## 4. Select from the gallery
@@ -189,6 +196,8 @@ Tell the user, concisely:
   `template: cliagent-<version>` value in `settings.mcs.yml`. Stop; do not retry with `--force`.
 - A GitHub tree "truncated" error, rate-limit, or network failure from `list`/`download` is
   transient - report it and offer to retry. Setting `GITHUB_TOKEN` raises the API limit for the one
-  tree call, but is not normally required.
+  tree call, but is not normally required. In a sandboxed client (for example Codex's default
+  `workspace-write`), a network failure usually means the sandbox blocks network access: rerun the
+  command with escalated permissions the user approves instead of retrying it as is.
 - If the user picks a non-skill catalog entry (a Scout automation or a legacy `.zip`), `download`
   refuses it with a clear message; relay that and suggest picking an actual skill.

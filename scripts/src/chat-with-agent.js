@@ -34,7 +34,6 @@
  */
 
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 const yaml = require("js-yaml");
 const { PublicClientApplication } = require("@azure/msal-node");
@@ -43,6 +42,7 @@ const { Activity } = require("@microsoft/agents-activity");
 const { createCachePluginWithFallback } = require("./msal-cache");
 const { summarizeTurn } = require("./response-format");
 const { createLiveRenderer } = require("./terminal-render");
+const { resolvePluginDataDir } = require("../plugin-data-dir");
 
 // Recognizer kinds that indicate a CLI / agentic-loop agent (served by the /3p agenticruntime
 // endpoint). Both are in active use: CLIAgentRecognizer (earlier) and CLICopilotRecognizer
@@ -134,22 +134,6 @@ function scopeForCloud(cloud) {
 // ---------------------------------------------------------------------------
 // Plugin data dir + config (app-registration storage)
 // ---------------------------------------------------------------------------
-
-// Resolve the runtime's persistent per-plugin data dir the same way the plugin's
-// SessionStart hook does: env var -> plugin-paths.json (pluginData) -> home fallback.
-function resolvePluginDataDir() {
-  const fromEnv = process.env.CLAUDE_PLUGIN_DATA || process.env.COPILOT_PLUGIN_DATA;
-  if (fromEnv && fromEnv.trim()) return fromEnv;
-
-  try {
-    const pathsFile = path.join(os.homedir(), ".copilot-studio-cli", "plugin-paths.json");
-    const parsed = JSON.parse(fs.readFileSync(pathsFile, "utf-8"));
-    if (parsed.pluginData && String(parsed.pluginData).trim()) return parsed.pluginData;
-  } catch {
-    // fall through to home
-  }
-  return path.join(os.homedir(), ".copilot-studio-cli");
-}
 
 function configPath() {
   const dir = resolvePluginDataDir();
