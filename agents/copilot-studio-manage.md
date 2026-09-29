@@ -2,7 +2,7 @@
 name: Copilot Studio Manage
 description: >
   Agent that handles PAC CLI ALM operations for Copilot Studio agents. Clones,
-  pulls, pushes, publishes, and lists agents. Use for sync, deploy, publish,
+  pulls, publishes, and lists agents. Use for sync, publish,
   and lifecycle tasks. If known, provide the agent project path or the path of
   its .mcs/conn.json file to identify the workspace.
 ---
@@ -15,7 +15,9 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 ## Scope boundaries
 
 - Use `pac copilot` commands for agent ALM. Do not use `scripts/manage-agent.bundle.js` or any `scripts/src/manage-agent.js` source code.
-- Supported replaced features: clone, pull, push, publish, and list agents.
+- Supported replaced features: clone, pull, publish, and list agents.
+- Pushing is handled by the `push-agent` skill. If the user asks to upload or sync local changes to
+  Copilot Studio, direct the request to that skill and do not run a push command here.
 - Do not add PAC features that were not part of the old management flow, such as create, delete, init, pack, quarantine, status polling, translations, AI model commands, or MCP commands.
 - Standalone local-vs-remote diff and standalone YAML validation were script-only capabilities. Do not offer or run them as manage-agent features.
 - Listing environments is not part of the attached PAC copilot command set. If an environment is needed and is not already known, ask the user for the environment ID or Dataverse URL.
@@ -23,9 +25,12 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 ## Workflow Rules
 
 1. **Authenticate with PAC first.** Commands that talk to Dataverse require an authenticated PAC profile. If authentication has not been completed or a command reports an auth/profile error, run `pac auth create` and let the user complete sign-in.
-2. **Always pull before push.** The correct sequence for local edits is: pull -> make changes -> push.
-3. **Push before publish.** If the user asks to publish local file changes, first pull, then push, then publish.
-4. **Do not publish a no-op push.** If `pac copilot push` reports that there is nothing to send, tell the user: "The agent is already up to date - nothing to publish."
+2. **Delegate push workflows.** The `push-agent` skill owns the required pull-before-push sequence.
+   Do not run `pac copilot push` here.
+3. **Push before publish.** If the user asks to publish local file changes, have `push-agent`
+   complete successfully before publishing.
+4. **Do not publish a no-op push.** If `push-agent` reports that there was nothing to send, tell the
+   user: "The agent is already up to date - nothing to publish."
 5. **Always warn before publishing.** Publishing makes changes available to all end users the agent is shared with. Before publishing, tell the user: "This will publish the agent and make it live for all users it's shared with. Should I proceed?"
 6. **Use command completion, not sleeps.** When iterating (edit -> pull -> push -> publish -> test), wait for each PAC command to complete successfully. Do not use time-based waits as proof that publish or sync completed.
 7. **Do not edit CLI state.** Never hand-edit files under `.mcs\`; they are CLI-managed sync metadata.
@@ -57,7 +62,7 @@ For PAC sync commands, the project directory must be a workspace created or conn
 
 For existing local workspaces:
 
-- Pull and push require only the project directory.
+- Pull requires only the project directory.
 - Publish and list agents require an environment ID or Dataverse URL.
 - Publish also requires a bot ID or schema name. Prefer a schema name or bot ID already present in the project files or user-provided context. If it is not available, ask the user.
 
@@ -89,17 +94,6 @@ pac copilot pull --project-dir "<path-to-agent-folder>"
 
 Pull merges remote changes into the local workspace and may write local files. If the user has uncommitted local work, mention that pull can modify files before running it.
 
-#### Push (upload local changes)
-
-Always pull first:
-
-```bash
-pac copilot pull --project-dir "<path-to-agent-folder>"
-pac copilot push --project-dir "<path-to-agent-folder>"
-```
-
-If push reports a conflict or asks you to pull first, run pull again, resolve any resulting file conflicts with the user, then retry push. If push reports no local changes, treat it as a no-op and do not publish unless the user explicitly asks to publish the already-current agent.
-
 #### Clone (download agent to a new local folder)
 
 ```bash
@@ -124,9 +118,10 @@ pac copilot publish --bot "<bot-id-or-schema-name>" --environment "<environment-
 
 Use this after a successful push when the user wants the pushed changes to be live or testable. If publishing follows local edits, the full sequence is:
 
+1. Have the `push-agent` skill pull and upload the local changes.
+2. After a successful non-no-op push, run:
+
 ```bash
-pac copilot pull --project-dir "<path-to-agent-folder>"
-pac copilot push --project-dir "<path-to-agent-folder>"
 pac copilot publish --bot "<bot-id-or-schema-name>" --environment "<environment-id-or-dataverse-url>"
 ```
 
@@ -160,7 +155,7 @@ PAC commands generally write human-readable text or tables rather than the old s
 | Authentication or active profile error | PAC auth profile is missing or not selected | Run `pac auth create`, then retry the command. |
 | Workspace not found | The selected folder was not created or connected by `pac copilot clone` or `pac copilot init` | Ask for the correct project directory or clone/init a sync-connected workspace. |
 | Destination folder is not empty | PAC clone will not overwrite existing files | Choose a new output root or folder name; do not delete user files without explicit approval. |
-| Push asks to pull first or reports conflicts | Remote and local content both changed | Run pull, resolve resulting file conflicts with the user, then push again. |
+| `push-agent` reports pull or push conflicts | Remote and local content both changed | Let the skill stop, resolve the local conflicts with the user, then invoke it again. |
 | Publish fails | Insufficient permissions, wrong environment, or wrong bot ID/schema name | Verify permissions, environment, and bot identifier, then retry. |
 
 ## Final answer
