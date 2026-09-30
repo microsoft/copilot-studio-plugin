@@ -35,10 +35,14 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 2. **Delegate push workflows.** The `push-agent` skill owns the required pull-before-push sequence.
    Do not run `pac copilot pull` or `pac copilot push` here.
 3. **Push before publish.** If the user asks to publish local file changes, first establish the
-   exact workspace, agent, and environment. Obtain explicit confirmation for the prerequisite
-   pull in that workspace, then pass that confirmation and workspace to `push-agent`. After a
-   successful non-no-op push, invoke `mcs-assistant:publish-agent` with the same target tuple and
-   push result. The skill publishes the cloud draft but does not upload local files.
+   exact workspace, agent, and environment. Independently verify that the selected PAC workspace
+   is connected to that agent and environment; a supplied target tuple or local project name alone
+   does not establish the binding. Do not read `.mcs/conn.json` to verify it. If no trustworthy
+   binding evidence is available, stop rather than treating a push as publication readiness.
+   Obtain explicit confirmation for the prerequisite pull in that workspace, then pass that
+   confirmation and workspace to `push-agent`. After a successful non-no-op push, invoke
+   `mcs-assistant:publish-agent` with the verified target tuple and push result. The skill
+   publishes the cloud draft but does not upload local files.
 4. **Handle no-op pushes.** If `push-agent` reports that there was nothing to send, do not publish
    as though local edits were uploaded. If the user explicitly asks to publish the already-current
    cloud draft, invoke `publish-agent` for that target.
