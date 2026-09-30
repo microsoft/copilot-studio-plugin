@@ -27,11 +27,12 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 ## Workflow Rules
 
 1. **Authenticate with PAC first.** Commands that talk to Dataverse require an authenticated PAC profile. If authentication has not been completed or a command reports an auth/profile error, run `pac auth create` and let the user complete sign-in.
-2. **Always pull before push.** Invoke `mcs-assistant:pull-agent` before this agent pushes. If the
-   user requested only push or publish, disclose that this prerequisite pull can merge remote
-   changes into local files and obtain confirmation before invoking the skill. Pass that
-   confirmation and the selected workspace to the skill. A direct pull request needs no extra
-   confirmation. Do not run `pac copilot pull` here.
+2. **Always pull before push.** Invoke `mcs-assistant:pull-agent` before this agent pushes. Before
+   every prerequisite pull, require explicit confirmation for the selected workspace because pull
+   can merge remote changes into local files. If confirmation was supplied by the caller, pass it
+   and the selected workspace to the skill. Otherwise, stop and tell the caller to obtain it. A
+   direct pull request is itself consent and needs no extra confirmation. Do not run
+   `pac copilot pull` here.
 3. **Push before publish.** If the user asks to publish local file changes, first pull, then push, then publish.
 4. **Do not publish a no-op push.** If `pac copilot push` reports that there is nothing to send, tell the user: "The agent is already up to date - nothing to publish."
 5. **Always warn before publishing.** Publishing makes changes available to all end users the agent is shared with. Before publishing, tell the user: "This will publish the agent and make it live for all users it's shared with. Should I proceed?"
