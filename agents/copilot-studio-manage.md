@@ -17,7 +17,7 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 
 - Use `pac copilot` commands for agent ALM. Do not use `scripts/manage-agent.bundle.js` or any `scripts/src/manage-agent.js` source code.
 - Supported replaced features: publish and list agents.
-- Pushing is handled by the `push-agent` skill. If the user asks to upload or sync local changes to
+- Pushing is handled by the `mcs-assistant:push-agent` skill. If the user asks to upload or sync local changes to
   Copilot Studio, direct the request to that skill and do not run a push command here.
 - Pulling is handled by the `mcs-assistant:pull-agent` skill. If the user asks to pull or sync
   remote changes into a local workspace, invoke that skill and do not run a pull command here.
@@ -32,7 +32,7 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 ## Workflow Rules
 
 1. **Authenticate with PAC first.** Commands that talk to Dataverse require an authenticated PAC profile. If authentication has not been completed or a command reports an auth/profile error, run `pac auth create` and let the user complete sign-in.
-2. **Delegate push workflows.** The `push-agent` skill owns the required pull-before-push sequence.
+2. **Delegate push workflows.** The `mcs-assistant:push-agent` skill owns the required pull-before-push sequence.
    Do not run `pac copilot pull` or `pac copilot push` here.
 3. **Push before publish.** If the user asks to publish local file changes, first establish the
    exact workspace, agent, and environment. Independently verify that the selected PAC workspace
@@ -40,10 +40,10 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
    does not establish the binding. Do not read `.mcs/conn.json` to verify it. If no trustworthy
    binding evidence is available, stop rather than treating a push as publication readiness.
    Obtain explicit confirmation for the prerequisite pull in that workspace, then pass that
-   confirmation and workspace to `push-agent`. After a successful non-no-op push, invoke
+   confirmation and workspace to `mcs-assistant:push-agent`. After a successful non-no-op push, invoke
    `mcs-assistant:publish-agent` with the verified target tuple and push result. The skill
    publishes the cloud draft but does not upload local files.
-4. **Handle no-op pushes.** If `push-agent` reports that there was nothing to send, do not publish
+4. **Handle no-op pushes.** If `mcs-assistant:push-agent` reports that there was nothing to send, do not publish
    as though local edits were uploaded. If the user explicitly asks to publish the already-current
    cloud draft, invoke `publish-agent` for that target.
 5. **Delegate publish confirmation.** The `publish-agent` skill owns the required warning and
@@ -97,7 +97,7 @@ pac auth create
 
 #### Publish (make the current agent live)
 
-For local edits, after `push-agent` succeeds with a non-no-op push, invoke
+For local edits, after `mcs-assistant:push-agent` succeeds with a non-no-op push, invoke
 `mcs-assistant:publish-agent` with:
 
 - the exact workspace path pushed;
@@ -138,7 +138,7 @@ PAC commands generally write human-readable text or tables rather than the old s
 |---|---|---|
 | Authentication or active profile error | PAC auth profile is missing or not selected | Run `pac auth create`, then retry the command. |
 | Workspace not found | The selected folder was not created or connected by `pac copilot clone` or `pac copilot init` | Ask for the correct project directory or clone/init a sync-connected workspace. |
-| `push-agent` reports pull or push conflicts | Remote and local content both changed | Let the skill stop, resolve the local conflicts with the user, then invoke it again. |
+| `mcs-assistant:push-agent` reports pull or push conflicts | Remote and local content both changed | Let the skill stop, resolve the local conflicts with the user, then invoke it again. |
 | Destination folder is not empty | PAC clone will not overwrite existing files | Choose a new output root or folder name; do not delete user files without explicit approval. |
 | `publish-agent` fails | Insufficient permissions, wrong environment, wrong bot identifier, or service failure | Let the skill preserve the failure status; verify the target and permissions before invoking it again. |
 

@@ -32,3 +32,10 @@ test("migration invokes push-agent directly with Skill permission", () => {
   assert.match(pushSection, /mcs-assistant:push-agent/);
   assert.doesNotMatch(pushSection, /Copilot Studio Manage/);
 });
+
+test("management uses the qualified push-agent identifier on every route", () => {
+  const manager = read("agents/copilot-studio-manage.md");
+
+  assert.match(manager, /`mcs-assistant:push-agent`/);
+  assert.doesNotMatch(manager, /`push-agent`/);
+});
