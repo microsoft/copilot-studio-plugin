@@ -25,7 +25,9 @@ Initial request: $ARGUMENTS
 - Push can upload authored components, knowledge files, connectors, workflows, prompts, and related
   references represented by the workspace.
 - A successful push updates draft content only. It does not make the agent live.
-- If no local changes exist, PAC reports a successful no-op.
+- PAC can perform auxiliary connector, connection-reference, or prompt operations before its final
+  no-change check. `No local changes detected` therefore does not prove that nothing changed in the
+  cloud.
 
 ## Passing values safely
 
@@ -105,12 +107,18 @@ Treat the push as successful only when PAC exits successfully. Distinguish:
 - a push that reports the number or list of uploaded changes; and
 - `No local changes detected` or another explicit no-change result.
 
-Report the workspace and push result. State that cloud draft content changed when PAC uploaded
-changes, or that the agent was already current for a no-op. State that nothing was published.
+Report the workspace and exact push result. State that cloud draft content changed when PAC reports
+uploaded changes. For a no-change result, report only that PAC found no changes in its final
+reported change set; do not claim the agent was already current or that no cloud content changed,
+because auxiliary operations may already have run. State that nothing was published.
 
 ## Error handling
 
 PAC writes human-readable output. Preserve the full error and apply these rules:
+
+A nonzero exit can follow completed auxiliary operations. Report the failure and do not claim that
+no cloud side effects occurred; PAC does not return a complete partial-result envelope for this
+command.
 
 | Failure | Action |
 |---|---|
@@ -118,7 +126,7 @@ PAC writes human-readable output. Preserve the full error and apply these rules:
 | Workspace not found or disconnected | Ask for a PAC-connected workspace. Do not edit `.mcs/conn.json`. |
 | Pull reports a merge conflict | Surface every conflict and stop so the user can resolve local files. Never continue to push. |
 | Push says remote changes require a pull | Do not loop automatically. Explain that the remote changed after the pre-push pull and ask before restarting the full sequence. |
-| No local changes | Treat it as success. Do not publish or claim cloud content changed. |
+| No local changes | Treat the command as successful, report PAC's exact no-change message, and do not infer that auxiliary cloud content was unchanged. Do not publish. |
 | Missing/invalid project file or service failure | Surface the full error and stop. Retry only after the cause is resolved and the user asks. |
 
 Never pass an overwrite or force option: `pac copilot push` exposes no such option, and conflicts

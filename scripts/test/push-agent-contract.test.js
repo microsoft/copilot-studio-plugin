@@ -39,3 +39,12 @@ test("management uses the qualified push-agent identifier on every route", () =>
   assert.match(manager, /`mcs-assistant:push-agent`/);
   assert.doesNotMatch(manager, /`push-agent`/);
 });
+
+test("PAC no-op reporting preserves possible auxiliary cloud side effects", () => {
+  const skill = read("skills/push-agent/SKILL.md");
+
+  assert.match(skill, /auxiliary connector, connection-reference, or prompt operations/i);
+  assert.match(skill, /does not prove that nothing changed in the\s+cloud/i);
+  assert.match(skill, /nonzero exit[\s\S]*do not claim that\s+no cloud side effects occurred/i);
+  assert.doesNotMatch(skill, /agent was already current for a no-op/i);
+});
