@@ -217,7 +217,18 @@ After the architect completes, confirm that the target project still contains `s
 
 After the architect completes, validate every authored `.mcs.yml` component file under the target project, including skills, tools, knowledge, and any other component folders: PAC derives each Dataverse `botcomponent.schemaname` from the file stem, so every bot-component file stem must start with a valid customization prefix for the target environment and must be no more than 100 characters long. Use the publisher prefix approved in step 4a. If needed, rename files to short prefixed stems such as `<approved-prefix>_filename.mcs.yml` before pushing
 
-After that validation, delegate the push to the **Copilot Studio Manage** sub-agent (you can use the latest good, mid-tier AI model). There's no need to execute `pac copilot pack`, instead, you should prefer delegating to the **Copilot Studio Manage** sub-agent for `pac copilot push` instead. Provide it with the target project directory and target environment ID. Confirm that the push was successful before completing the migration workflow. Publishing is not necessary.
+Before delegating the push, tell the user that its prerequisite pull can merge remote changes into
+the local target workspace and ask for explicit confirmation to pull that exact target directory.
+Do not treat migration-plan approval as consent for this local write. If the user declines, stop
+before push without discarding the completed migration files. Record confirmation and the exact
+target directory in `MIGRATION-PLAN-<random>.md`; confirmation does not apply if the target changes.
+
+After confirmation, delegate the push to the **Copilot Studio Manage** sub-agent (you can use the
+latest good, mid-tier AI model). There's no need to execute `pac copilot pack`; prefer delegating to
+the **Copilot Studio Manage** sub-agent for `pac copilot push`. Provide it with the target project
+directory, target environment ID, and an explicit statement that the user confirmed the
+prerequisite pull for that exact workspace. Confirm that the push was successful before completing
+the migration workflow. Publishing is not necessary.
 
 ## Output Guidance
 
