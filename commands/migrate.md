@@ -83,7 +83,7 @@ Record the approved publisher prefix so it can be passed to the init sub-agent a
 
 Delegate initialization to the **Copilot Studio Init** sub-agent (you can use the latest good, mid-tier AI model). Tell it the exact migrated agent display name, target project directory, environment ID, and approved publisher prefix. Don't be too long in its task. The init sub-agent requires shorter task descriptions (as opposed to the architect sub-agent for example).
 
-After the init sub-agent completes, confirm the target agent's `settings.mcs.yml` exists before continuing. This step MUST be completed before migrating tools or implementing migration steps, but can be run in parallel with the "describe old agent" step.
+After the init sub-agent completes, confirm the target agent's `settings.mcs.yml` exists and that the sub-agent reported its follow-up `pac copilot pull` completed. If that pull failed, stop and show the user its output instead of continuing. This step MUST be completed before migrating tools or implementing migration steps, but can be run in parallel with the "describe old agent" step.
 
 ### 5. Describe the source agent
 
