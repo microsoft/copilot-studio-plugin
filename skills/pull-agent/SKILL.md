@@ -54,9 +54,9 @@ Resolve the workspace in this order:
 
 1. If the user provides a project directory, use it.
 2. If the user provides a `.mcs/conn.json` path, use the parent directory of `.mcs`.
-3. Otherwise, search the current working tree for directories containing `.mcs/conn.json`,
-   `settings.mcs.yml`, or `agent.mcs.yml`.
-4. If several workspaces match, present their paths and ask the user to choose one.
+3. Otherwise, search the current working tree for directories containing `.mcs/conn.json` and
+   either `settings.mcs.yml` or `agent.mcs.yml`.
+4. If several valid connected workspaces match, present their paths and ask the user to choose one.
 
 Require an existing directory containing `.mcs/conn.json` plus `settings.mcs.yml` or
 `agent.mcs.yml`. Do not read, print, or modify `.mcs/conn.json` directly. If the markers are
@@ -68,8 +68,10 @@ Before execution, state the selected workspace and that pull can modify and merg
 If the user reports uncommitted or otherwise unsaved local work, warn them to preserve it before
 continuing. Do not delete, reset, stash, or overwrite local changes on the user's behalf.
 
-The user's explicit request to pull is consent for these local writes. Do not ask for another
-confirmation unless workspace resolution changed the requested target.
+The user's explicit request to pull is consent for these local writes. If this skill is invoked as
+a prerequisite for push or publish and the caller has not supplied the user's confirmation for the
+pull, stop and tell the caller to obtain that confirmation before invoking the skill again. Ask
+again only if workspace resolution changed the confirmed target.
 
 ### 4. Run the pull
 

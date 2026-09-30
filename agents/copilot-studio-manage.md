@@ -16,8 +16,8 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 
 - Use `pac copilot` commands for agent ALM. Do not use `scripts/manage-agent.bundle.js` or any `scripts/src/manage-agent.js` source code.
 - Supported replaced features: push, publish, and list agents.
-- Pulling is handled by the `pull-agent` skill. If the user asks to pull or sync remote changes
-  into a local workspace, direct the request to that skill and do not run a pull command here.
+- Pulling is handled by the `mcs-assistant:pull-agent` skill. If the user asks to pull or sync
+  remote changes into a local workspace, invoke that skill and do not run a pull command here.
 - Cloning is handled by the `clone-agent` skill. If the user asks to clone an agent, direct the
   request to that skill and do not run a clone command here.
 - Do not add PAC features that were not part of the old management flow, such as create, delete, init, pack, quarantine, status polling, translations, AI model commands, or MCP commands.
@@ -27,8 +27,11 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 ## Workflow Rules
 
 1. **Authenticate with PAC first.** Commands that talk to Dataverse require an authenticated PAC profile. If authentication has not been completed or a command reports an auth/profile error, run `pac auth create` and let the user complete sign-in.
-2. **Always pull before push.** Have the `pull-agent` skill complete the pull before this agent
-   pushes. Do not run `pac copilot pull` here.
+2. **Always pull before push.** Invoke `mcs-assistant:pull-agent` before this agent pushes. If the
+   user requested only push or publish, disclose that this prerequisite pull can merge remote
+   changes into local files and obtain confirmation before invoking the skill. Pass that
+   confirmation and the selected workspace to the skill. A direct pull request needs no extra
+   confirmation. Do not run `pac copilot pull` here.
 3. **Push before publish.** If the user asks to publish local file changes, first pull, then push, then publish.
 4. **Do not publish a no-op push.** If `pac copilot push` reports that there is nothing to send, tell the user: "The agent is already up to date - nothing to publish."
 5. **Always warn before publishing.** Publishing makes changes available to all end users the agent is shared with. Before publishing, tell the user: "This will publish the agent and make it live for all users it's shared with. Should I proceed?"
@@ -78,15 +81,17 @@ pac auth create
 
 #### Push (upload local changes)
 
-Always have the `pull-agent` skill complete a pull first. After it succeeds, run:
+Complete the confirmed prerequisite pull with `mcs-assistant:pull-agent` first. After it succeeds,
+run:
 
 ```bash
 pac copilot push --project-dir "<path-to-agent-folder>"
 ```
 
-If push reports a conflict or asks for another pull, return to the `pull-agent` skill, resolve any
-resulting local conflicts with the user, then retry push. If push reports no local changes, treat it
-as a no-op and do not publish unless the user explicitly asks to publish the already-current agent.
+If push reports a conflict or asks for another pull, return to `mcs-assistant:pull-agent`, resolve
+any resulting local conflicts with the user, then retry push. If push reports no local changes,
+treat it as a no-op and do not publish unless the user explicitly asks to publish the
+already-current agent.
 
 #### Publish (make the current agent live)
 
@@ -98,7 +103,7 @@ pac copilot publish --bot "<bot-id-or-schema-name>" --environment "<environment-
 
 Use this after a successful push when the user wants the pushed changes to be live or testable. If publishing follows local edits, the full sequence is:
 
-1. Have the `pull-agent` skill update the workspace.
+1. Complete the confirmed prerequisite pull with `mcs-assistant:pull-agent`.
 2. Run:
 
 ```bash
@@ -135,7 +140,7 @@ PAC commands generally write human-readable text or tables rather than the old s
 |---|---|---|
 | Authentication or active profile error | PAC auth profile is missing or not selected | Run `pac auth create`, then retry the command. |
 | Workspace not found | The selected folder was not created or connected by `pac copilot clone` or `pac copilot init` | Ask for the correct project directory or clone/init a sync-connected workspace. |
-| Push asks to pull first or reports conflicts | Remote and local content both changed | Use the `pull-agent` skill, resolve resulting file conflicts with the user, then push again. |
+| Push asks to pull first or reports conflicts | Remote and local content both changed | Use `mcs-assistant:pull-agent`, resolve resulting file conflicts with the user, then push again. |
 | Publish fails | Insufficient permissions, wrong environment, or wrong bot ID/schema name | Verify permissions, environment, and bot identifier, then retry. |
 
 ## Final answer
