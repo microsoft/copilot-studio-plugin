@@ -35,8 +35,10 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
    and the selected workspace to the skill. Otherwise, stop and tell the caller to obtain it. A
    direct pull request is itself consent and needs no extra confirmation. Do not run
    `pac copilot pull` here.
-3. **Push before publish.** If the user asks to publish local file changes, first pull, then push,
-   then invoke `publish-agent`. The skill publishes the cloud draft but does not upload local files.
+3. **Push before publish.** If the user asks to publish local file changes, first establish the
+   exact workspace, agent, and environment, then pull and push that workspace. After a successful
+   non-no-op push, invoke `mcs-assistant:publish-agent` with the same target tuple and the push
+   result. The skill publishes the cloud draft but does not upload local files.
 4. **Do not publish a no-op push.** If `pac copilot push` reports that there is nothing to send, tell the user: "The agent is already up to date - nothing to publish."
 5. **Delegate publish confirmation.** The `publish-agent` skill owns the required warning and
    confirmation immediately before making the agent live.
@@ -73,6 +75,10 @@ For existing local workspaces:
 - Push requires only the project directory.
 - Publish and list agents require an environment ID or Dataverse URL.
 - Publish also requires a bot ID or schema name. Prefer a schema name or bot ID already present in the project files or user-provided context. If it is not available, ask the user.
+- Publishing local edits requires one target tuple established before synchronization: the exact
+  workspace, agent, and environment. Keep that tuple with the result of the immediately following
+  pull and push; never use a successful push from another workspace or earlier workflow as publish
+  readiness.
 
 ### Phase 1: Authenticate
 
@@ -97,6 +103,15 @@ If push reports a conflict or asks for another pull, return to `mcs-assistant:pu
 any resulting local conflicts with the user, then retry push. If push reports no local changes,
 treat it as a no-op and do not publish unless the user explicitly asks to publish the
 already-current agent.
+
+After a successful non-no-op push for local edits, invoke `mcs-assistant:publish-agent` with:
+
+- the exact workspace path pushed;
+- the exact agent identifier and environment established for that workspace; and
+- an explicit statement that the immediately preceding pull and push succeeded for that same
+  target.
+
+If any value is unavailable or differs from the publish target, stop instead of invoking the skill.
 
 #### List Agents
 

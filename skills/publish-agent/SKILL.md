@@ -74,9 +74,18 @@ Never substitute a different agent or environment from the target the user selec
 
 ### 3. Establish draft readiness
 
-Publishing does not send local files. If the request is to publish local edits, require a successful
-pull and push workflow before continuing. If that has not happened, stop and direct the user to
-push the workspace first. Do not silently publish an older cloud draft.
+Publishing does not send local files. If the request is to publish local edits, require the caller
+to provide draft-readiness evidence from the current workflow:
+
+- the exact workspace that was pulled and pushed;
+- the exact agent and environment targeted by that push; and
+- the successful, non-no-op push result.
+
+The evidence must name the same agent identifier and environment resolved in step 2. Compare IDs
+case-insensitively and normalize environment URLs before comparing them. A generic statement that
+"push succeeded," a push from an earlier workflow, or a push for another workspace is insufficient.
+If the evidence is missing or does not match the resolved publish target, stop and require a new
+pull and push for that exact target. Do not silently publish an older cloud draft.
 
 If the user explicitly wants to publish the already-current cloud draft, no local workspace is
 required.

@@ -1,7 +1,7 @@
 ---
 description: Chat with a locally-cloned Copilot Studio CLI (agentic-loop) agent to test it, streaming turns against the published agent via the agenticruntime endpoint.
 argument-hint: Optional agent name/path and the first message to send
-allowed-tools: Bash(pac), Bash(node *chat-with-agent.bundle.js*), Read, Write, Glob, Grep, Task, WebFetch(domain:raw.githubusercontent.com)
+allowed-tools: Skill, Bash(node *chat-with-agent.bundle.js*), Read, Write, Glob, Grep, Task, WebFetch(domain:raw.githubusercontent.com)
 ---
 
 # Chat with a Copilot Studio CLI Agent
@@ -157,11 +157,13 @@ final `text` is the answer, `reasoning` is the agent's thinking, and `steps` are
 - If `status` is `"error"`, surface the `error` message. For `needsClientId`, run the setup workflow
   (step 4). For a non-CLI `recognizerKind`, stop per the gate (step 3). If the error carries
   `httpStatus: 404`, the most likely cause is that the agent is **not published** (a fresh clone stays
-  unpublished until published). Explain this and **offer to publish it for the user**: on their
-  confirmation, run `pac copilot publish --bot-id <AgentId>` (the `AgentId` is in the error payload and
-  in `chat-config.json`), wait for it to finish, then automatically retry the same chat turn. Do not
-  publish without confirmation, and note that 404 can occasionally have other causes (wrong
-  environment/schema) if publishing does not resolve it.
+  unpublished until published). Explain this and **offer to publish it for the user**. If they accept,
+  require both `agentId` and `environmentId` from the error payload, then invoke
+  `mcs-assistant:publish-agent` with those exact values. Let the skill resolve the target and obtain
+  its own required confirmation; do not run a publish command directly. Retry the same chat turn only
+  after the skill reports a successful publish. If either identifier is absent, stop and ask for the
+  missing value. Note that 404 can occasionally have other causes (wrong environment/schema) if
+  publishing does not resolve it.
 
 **Output modes.** Add `--raw` to get the full, unfiltered activity payloads (start + turn) for
 debugging. Add `--pretty` for a colorized, live terminal chat experience (reasoning in cyan, tool

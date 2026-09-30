@@ -3,11 +3,20 @@ var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
 };
 var __commonJS = (cb, mod) => function __require() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  try {
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  } catch (e) {
+    throw mod = 0, e;
+  }
 };
 var __export = (target, all) => {
   for (var name in all)
@@ -2629,7 +2638,7 @@ var require_dumper = __commonJS({
       return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
     }
     function writeScalar(state, string, level, iskey, inblock) {
-      state.dump = function() {
+      state.dump = (function() {
         if (string.length === 0) {
           return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
         }
@@ -2668,7 +2677,7 @@ var require_dumper = __commonJS({
           default:
             throw new YAMLException("impossible error: invalid scalar style");
         }
-      }();
+      })();
     }
     function blockHeader(string, indentPerLevel) {
       const indentIndicator = needIndentIndicator(string) ? String(indentPerLevel) : "";
@@ -2682,12 +2691,12 @@ var require_dumper = __commonJS({
     }
     function foldString(string, width) {
       const lineRe = /(\n+)([^\n]*)/g;
-      let result = function() {
+      let result = (function() {
         let nextLF = string.indexOf("\n");
         nextLF = nextLF !== -1 ? nextLF : string.length;
         lineRe.lastIndex = nextLF;
         return foldLine(string.slice(0, nextLF), width);
-      }();
+      })();
       let prevMoreIndented = string[0] === "\n" || string[0] === " ";
       let moreIndented;
       let match;
@@ -5353,7 +5362,7 @@ var require_range = __commonJS({
 var require_comparator = __commonJS({
   "node_modules/semver/classes/comparator.js"(exports2, module2) {
     "use strict";
-    var ANY = Symbol("SemVer ANY");
+    var ANY = /* @__PURE__ */ Symbol("SemVer ANY");
     var Comparator = class _Comparator {
       static get ANY() {
         return ANY;
@@ -18447,7 +18456,7 @@ var init_global_utils = __esm({
     init_version();
     init_semver();
     major = VERSION.split(".")[0];
-    GLOBAL_OPENTELEMETRY_API_KEY = Symbol.for(`opentelemetry.js.api.${major}`);
+    GLOBAL_OPENTELEMETRY_API_KEY = /* @__PURE__ */ Symbol.for(`opentelemetry.js.api.${major}`);
     _global = typeof globalThis === "object" ? globalThis : typeof self === "object" ? self : typeof window === "object" ? window : typeof global === "object" ? global : {};
   }
 });
@@ -18648,7 +18657,7 @@ var init_baggage_impl = __esm({
 var baggageEntryMetadataSymbol;
 var init_symbol = __esm({
   "node_modules/@opentelemetry/api/build/esm/baggage/internal/symbol.js"() {
-    baggageEntryMetadataSymbol = Symbol("BaggageEntryMetadata");
+    baggageEntryMetadataSymbol = /* @__PURE__ */ Symbol("BaggageEntryMetadata");
   }
 });
 
@@ -19930,7 +19939,7 @@ var require_global_utils = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.API_BACKWARDS_COMPATIBILITY_VERSION = exports2.makeGetter = exports2._global = exports2.GLOBAL_LOGS_API_KEY = void 0;
-    exports2.GLOBAL_LOGS_API_KEY = Symbol.for("io.opentelemetry.js.api.logs");
+    exports2.GLOBAL_LOGS_API_KEY = /* @__PURE__ */ Symbol.for("io.opentelemetry.js.api.logs");
     exports2._global = globalThis;
     function makeGetter(requiredVersion, instance, fallback) {
       return (version) => version === requiredVersion ? instance : fallback;
@@ -24691,7 +24700,7 @@ var require_types = __commonJS({
         ...processCreateParams(params)
       });
     };
-    exports2.BRAND = Symbol("zod_brand");
+    exports2.BRAND = /* @__PURE__ */ Symbol("zod_brand");
     var ZodBranded = class extends ZodType {
       _parse(input) {
         const { ctx } = this._processInputParams(input);
@@ -24935,14 +24944,14 @@ var require_types = __commonJS({
     var oboolean = () => booleanType().optional();
     exports2.oboolean = oboolean;
     exports2.coerce = {
-      string: (arg) => ZodString.create({ ...arg, coerce: true }),
-      number: (arg) => ZodNumber.create({ ...arg, coerce: true }),
-      boolean: (arg) => ZodBoolean.create({
+      string: ((arg) => ZodString.create({ ...arg, coerce: true })),
+      number: ((arg) => ZodNumber.create({ ...arg, coerce: true })),
+      boolean: ((arg) => ZodBoolean.create({
         ...arg,
         coerce: true
-      }),
-      bigint: (arg) => ZodBigInt.create({ ...arg, coerce: true }),
-      date: (arg) => ZodDate.create({ ...arg, coerce: true })
+      })),
+      bigint: ((arg) => ZodBigInt.create({ ...arg, coerce: true })),
+      date: ((arg) => ZodDate.create({ ...arg, coerce: true }))
     };
     exports2.NEVER = parseUtil_js_1.INVALID;
   }
@@ -24952,7 +24961,7 @@ var require_types = __commonJS({
 var require_external = __commonJS({
   "node_modules/zod/v3/external.cjs"(exports2) {
     "use strict";
-    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? function(o, m, k, k2) {
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       var desc = Object.getOwnPropertyDescriptor(m, k);
       if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
@@ -24961,10 +24970,10 @@ var require_external = __commonJS({
         } };
       }
       Object.defineProperty(o, k2, desc);
-    } : function(o, m, k, k2) {
+    }) : (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       o[k2] = m[k];
-    });
+    }));
     var __exportStar = exports2 && exports2.__exportStar || function(m, exports3) {
       for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports3, p)) __createBinding(exports3, m, p);
     };
@@ -24982,7 +24991,7 @@ var require_external = __commonJS({
 var require_zod = __commonJS({
   "node_modules/zod/index.cjs"(exports2) {
     "use strict";
-    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? function(o, m, k, k2) {
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       var desc = Object.getOwnPropertyDescriptor(m, k);
       if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
@@ -24991,13 +25000,13 @@ var require_zod = __commonJS({
         } };
       }
       Object.defineProperty(o, k2, desc);
-    } : function(o, m, k, k2) {
+    }) : (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       o[k2] = m[k];
-    });
-    var __setModuleDefault = exports2 && exports2.__setModuleDefault || (Object.create ? function(o, v) {
+    }));
+    var __setModuleDefault = exports2 && exports2.__setModuleDefault || (Object.create ? (function(o, v) {
       Object.defineProperty(o, "default", { enumerable: true, value: v });
-    } : function(o, v) {
+    }) : function(o, v) {
       o["default"] = v;
     });
     var __importStar = exports2 && exports2.__importStar || function(mod) {
@@ -26226,7 +26235,7 @@ var require_activity = __commonJS({
 var require_src5 = __commonJS({
   "node_modules/@microsoft/agents-activity/dist/src/index.js"(exports2) {
     "use strict";
-    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? function(o, m, k, k2) {
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       var desc = Object.getOwnPropertyDescriptor(m, k);
       if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
@@ -26235,10 +26244,10 @@ var require_src5 = __commonJS({
         } };
       }
       Object.defineProperty(o, k2, desc);
-    } : function(o, m, k, k2) {
+    }) : (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       o[k2] = m[k];
-    });
+    }));
     var __exportStar = exports2 && exports2.__exportStar || function(m, exports3) {
       for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports3, p)) __createBinding(exports3, m, p);
     };
@@ -26743,7 +26752,7 @@ var require_traces = __commonJS({
 var require_observability = __commonJS({
   "node_modules/@microsoft/agents-copilotstudio-client/dist/src/observability/index.js"(exports2) {
     "use strict";
-    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? function(o, m, k, k2) {
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       var desc = Object.getOwnPropertyDescriptor(m, k);
       if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
@@ -26752,10 +26761,10 @@ var require_observability = __commonJS({
         } };
       }
       Object.defineProperty(o, k2, desc);
-    } : function(o, m, k, k2) {
+    }) : (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       o[k2] = m[k];
-    });
+    }));
     var __exportStar = exports2 && exports2.__exportStar || function(m, exports3) {
       for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports3, p)) __createBinding(exports3, m, p);
     };
@@ -27288,7 +27297,7 @@ var require_Subscription = __commonJS({
     var isFunction_1 = require_isFunction();
     var UnsubscriptionError_1 = require_UnsubscriptionError();
     var arrRemove_1 = require_arrRemove();
-    var Subscription = function() {
+    var Subscription = (function() {
       function Subscription2(initialTeardown) {
         this.initialTeardown = initialTeardown;
         this.closed = false;
@@ -27401,13 +27410,13 @@ var require_Subscription = __commonJS({
           teardown._removeParent(this);
         }
       };
-      Subscription2.EMPTY = function() {
+      Subscription2.EMPTY = (function() {
         var empty = new Subscription2();
         empty.closed = true;
         return empty;
-      }();
+      })();
       return Subscription2;
-    }();
+    })();
     exports2.Subscription = Subscription;
     exports2.EMPTY_SUBSCRIPTION = Subscription.EMPTY;
     function isSubscription(value) {
@@ -27529,9 +27538,9 @@ var require_NotificationFactories = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.createNotification = exports2.nextNotification = exports2.errorNotification = exports2.COMPLETE_NOTIFICATION = void 0;
-    exports2.COMPLETE_NOTIFICATION = function() {
+    exports2.COMPLETE_NOTIFICATION = (function() {
       return createNotification("C", void 0, void 0);
-    }();
+    })();
     function errorNotification(error) {
       return createNotification("E", void 0, error);
     }
@@ -27592,7 +27601,7 @@ var require_errorContext = __commonJS({
 var require_Subscriber = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/Subscriber.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -27610,7 +27619,7 @@ var require_Subscriber = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.EMPTY_OBSERVER = exports2.SafeSubscriber = exports2.Subscriber = void 0;
     var isFunction_1 = require_isFunction();
@@ -27621,7 +27630,7 @@ var require_Subscriber = __commonJS({
     var NotificationFactories_1 = require_NotificationFactories();
     var timeoutProvider_1 = require_timeoutProvider();
     var errorContext_1 = require_errorContext();
-    var Subscriber = function(_super) {
+    var Subscriber = (function(_super) {
       __extends(Subscriber2, _super);
       function Subscriber2(destination) {
         var _this = _super.call(this) || this;
@@ -27687,13 +27696,13 @@ var require_Subscriber = __commonJS({
         }
       };
       return Subscriber2;
-    }(Subscription_1.Subscription);
+    })(Subscription_1.Subscription);
     exports2.Subscriber = Subscriber;
     var _bind = Function.prototype.bind;
     function bind(fn, thisArg) {
       return _bind.call(fn, thisArg);
     }
-    var ConsumerObserver = function() {
+    var ConsumerObserver = (function() {
       function ConsumerObserver2(partialObserver) {
         this.partialObserver = partialObserver;
       }
@@ -27730,8 +27739,8 @@ var require_Subscriber = __commonJS({
         }
       };
       return ConsumerObserver2;
-    }();
-    var SafeSubscriber = function(_super) {
+    })();
+    var SafeSubscriber = (function(_super) {
       __extends(SafeSubscriber2, _super);
       function SafeSubscriber2(observerOrNext, error, complete) {
         var _this = _super.call(this) || this;
@@ -27762,7 +27771,7 @@ var require_Subscriber = __commonJS({
         return _this;
       }
       return SafeSubscriber2;
-    }(Subscriber);
+    })(Subscriber);
     exports2.SafeSubscriber = SafeSubscriber;
     function handleUnhandledError(error) {
       if (config_1.config.useDeprecatedSynchronousErrorHandling) {
@@ -27795,9 +27804,9 @@ var require_observable = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.observable = void 0;
-    exports2.observable = function() {
+    exports2.observable = (function() {
       return typeof Symbol === "function" && Symbol.observable || "@@observable";
-    }();
+    })();
   }
 });
 
@@ -27859,7 +27868,7 @@ var require_Observable = __commonJS({
     var config_1 = require_config();
     var isFunction_1 = require_isFunction();
     var errorContext_1 = require_errorContext();
-    var Observable = function() {
+    var Observable = (function() {
       function Observable2(subscribe) {
         if (subscribe) {
           this._subscribe = subscribe;
@@ -27938,7 +27947,7 @@ var require_Observable = __commonJS({
         return new Observable2(subscribe);
       };
       return Observable2;
-    }();
+    })();
     exports2.Observable = Observable;
     function getPromiseCtor(promiseCtor) {
       var _a;
@@ -27986,7 +27995,7 @@ var require_lift = __commonJS({
 var require_OperatorSubscriber = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/operators/OperatorSubscriber.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -28004,7 +28013,7 @@ var require_OperatorSubscriber = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.OperatorSubscriber = exports2.createOperatorSubscriber = void 0;
     var Subscriber_1 = require_Subscriber();
@@ -28012,7 +28021,7 @@ var require_OperatorSubscriber = __commonJS({
       return new OperatorSubscriber(destination, onNext, onComplete, onError, onFinalize);
     }
     exports2.createOperatorSubscriber = createOperatorSubscriber;
-    var OperatorSubscriber = function(_super) {
+    var OperatorSubscriber = (function(_super) {
       __extends(OperatorSubscriber2, _super);
       function OperatorSubscriber2(destination, onNext, onComplete, onError, onFinalize, shouldUnsubscribe) {
         var _this = _super.call(this, destination) || this;
@@ -28054,7 +28063,7 @@ var require_OperatorSubscriber = __commonJS({
         }
       };
       return OperatorSubscriber2;
-    }(Subscriber_1.Subscriber);
+    })(Subscriber_1.Subscriber);
     exports2.OperatorSubscriber = OperatorSubscriber;
   }
 });
@@ -28098,7 +28107,7 @@ var require_refCount = __commonJS({
 var require_ConnectableObservable = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/observable/ConnectableObservable.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -28116,7 +28125,7 @@ var require_ConnectableObservable = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ConnectableObservable = void 0;
     var Observable_1 = require_Observable();
@@ -28124,7 +28133,7 @@ var require_ConnectableObservable = __commonJS({
     var refCount_1 = require_refCount();
     var OperatorSubscriber_1 = require_OperatorSubscriber();
     var lift_1 = require_lift();
-    var ConnectableObservable = function(_super) {
+    var ConnectableObservable = (function(_super) {
       __extends(ConnectableObservable2, _super);
       function ConnectableObservable2(source, subjectFactory) {
         var _this = _super.call(this) || this;
@@ -28180,7 +28189,7 @@ var require_ConnectableObservable = __commonJS({
         return refCount_1.refCount()(this);
       };
       return ConnectableObservable2;
-    }(Observable_1.Observable);
+    })(Observable_1.Observable);
     exports2.ConnectableObservable = ConnectableObservable;
   }
 });
@@ -28331,7 +28340,7 @@ var require_ObjectUnsubscribedError = __commonJS({
 var require_Subject = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/Subject.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -28349,7 +28358,7 @@ var require_Subject = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     var __values = exports2 && exports2.__values || function(o) {
       var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
       if (m) return m.call(o);
@@ -28368,7 +28377,7 @@ var require_Subject = __commonJS({
     var ObjectUnsubscribedError_1 = require_ObjectUnsubscribedError();
     var arrRemove_1 = require_arrRemove();
     var errorContext_1 = require_errorContext();
-    var Subject = function(_super) {
+    var Subject = (function(_super) {
       __extends(Subject2, _super);
       function Subject2() {
         var _this = _super.call(this) || this;
@@ -28494,9 +28503,9 @@ var require_Subject = __commonJS({
         return new AnonymousSubject(destination, source);
       };
       return Subject2;
-    }(Observable_1.Observable);
+    })(Observable_1.Observable);
     exports2.Subject = Subject;
-    var AnonymousSubject = function(_super) {
+    var AnonymousSubject = (function(_super) {
       __extends(AnonymousSubject2, _super);
       function AnonymousSubject2(destination, source) {
         var _this = _super.call(this) || this;
@@ -28521,7 +28530,7 @@ var require_Subject = __commonJS({
         return (_b = (_a = this.source) === null || _a === void 0 ? void 0 : _a.subscribe(subscriber)) !== null && _b !== void 0 ? _b : Subscription_1.EMPTY_SUBSCRIPTION;
       };
       return AnonymousSubject2;
-    }(Subject);
+    })(Subject);
     exports2.AnonymousSubject = AnonymousSubject;
   }
 });
@@ -28530,7 +28539,7 @@ var require_Subject = __commonJS({
 var require_BehaviorSubject = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/BehaviorSubject.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -28548,11 +28557,11 @@ var require_BehaviorSubject = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.BehaviorSubject = void 0;
     var Subject_1 = require_Subject();
-    var BehaviorSubject = function(_super) {
+    var BehaviorSubject = (function(_super) {
       __extends(BehaviorSubject2, _super);
       function BehaviorSubject2(_value) {
         var _this = _super.call(this) || this;
@@ -28583,7 +28592,7 @@ var require_BehaviorSubject = __commonJS({
         _super.prototype.next.call(this, this._value = value);
       };
       return BehaviorSubject2;
-    }(Subject_1.Subject);
+    })(Subject_1.Subject);
     exports2.BehaviorSubject = BehaviorSubject;
   }
 });
@@ -28607,7 +28616,7 @@ var require_dateTimestampProvider = __commonJS({
 var require_ReplaySubject = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/ReplaySubject.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -28625,12 +28634,12 @@ var require_ReplaySubject = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ReplaySubject = void 0;
     var Subject_1 = require_Subject();
     var dateTimestampProvider_1 = require_dateTimestampProvider();
-    var ReplaySubject = function(_super) {
+    var ReplaySubject = (function(_super) {
       __extends(ReplaySubject2, _super);
       function ReplaySubject2(_bufferSize, _windowTime, _timestampProvider) {
         if (_bufferSize === void 0) {
@@ -28688,7 +28697,7 @@ var require_ReplaySubject = __commonJS({
         }
       };
       return ReplaySubject2;
-    }(Subject_1.Subject);
+    })(Subject_1.Subject);
     exports2.ReplaySubject = ReplaySubject;
   }
 });
@@ -28697,7 +28706,7 @@ var require_ReplaySubject = __commonJS({
 var require_AsyncSubject = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/AsyncSubject.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -28715,11 +28724,11 @@ var require_AsyncSubject = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.AsyncSubject = void 0;
     var Subject_1 = require_Subject();
-    var AsyncSubject = function(_super) {
+    var AsyncSubject = (function(_super) {
       __extends(AsyncSubject2, _super);
       function AsyncSubject2() {
         var _this = _super !== null && _super.apply(this, arguments) || this;
@@ -28752,7 +28761,7 @@ var require_AsyncSubject = __commonJS({
         }
       };
       return AsyncSubject2;
-    }(Subject_1.Subject);
+    })(Subject_1.Subject);
     exports2.AsyncSubject = AsyncSubject;
   }
 });
@@ -28761,7 +28770,7 @@ var require_AsyncSubject = __commonJS({
 var require_Action = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/scheduler/Action.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -28779,11 +28788,11 @@ var require_Action = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.Action = void 0;
     var Subscription_1 = require_Subscription();
-    var Action = function(_super) {
+    var Action = (function(_super) {
       __extends(Action2, _super);
       function Action2(scheduler, work) {
         return _super.call(this) || this;
@@ -28795,7 +28804,7 @@ var require_Action = __commonJS({
         return this;
       };
       return Action2;
-    }(Subscription_1.Subscription);
+    })(Subscription_1.Subscription);
     exports2.Action = Action;
   }
 });
@@ -28853,7 +28862,7 @@ var require_intervalProvider = __commonJS({
 var require_AsyncAction = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/scheduler/AsyncAction.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -28871,13 +28880,13 @@ var require_AsyncAction = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.AsyncAction = void 0;
     var Action_1 = require_Action();
     var intervalProvider_1 = require_intervalProvider();
     var arrRemove_1 = require_arrRemove();
-    var AsyncAction = function(_super) {
+    var AsyncAction = (function(_super) {
       __extends(AsyncAction2, _super);
       function AsyncAction2(scheduler, work) {
         var _this = _super.call(this, scheduler, work) || this;
@@ -28964,7 +28973,7 @@ var require_AsyncAction = __commonJS({
         }
       };
       return AsyncAction2;
-    }(Action_1.Action);
+    })(Action_1.Action);
     exports2.AsyncAction = AsyncAction;
   }
 });
@@ -29062,7 +29071,7 @@ var require_immediateProvider = __commonJS({
 var require_AsapAction = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/scheduler/AsapAction.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -29080,12 +29089,12 @@ var require_AsapAction = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.AsapAction = void 0;
     var AsyncAction_1 = require_AsyncAction();
     var immediateProvider_1 = require_immediateProvider();
-    var AsapAction = function(_super) {
+    var AsapAction = (function(_super) {
       __extends(AsapAction2, _super);
       function AsapAction2(scheduler, work) {
         var _this = _super.call(this, scheduler, work) || this;
@@ -29121,7 +29130,7 @@ var require_AsapAction = __commonJS({
         return void 0;
       };
       return AsapAction2;
-    }(AsyncAction_1.AsyncAction);
+    })(AsyncAction_1.AsyncAction);
     exports2.AsapAction = AsapAction;
   }
 });
@@ -29133,7 +29142,7 @@ var require_Scheduler = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.Scheduler = void 0;
     var dateTimestampProvider_1 = require_dateTimestampProvider();
-    var Scheduler = function() {
+    var Scheduler = (function() {
       function Scheduler2(schedulerActionCtor, now) {
         if (now === void 0) {
           now = Scheduler2.now;
@@ -29149,7 +29158,7 @@ var require_Scheduler = __commonJS({
       };
       Scheduler2.now = dateTimestampProvider_1.dateTimestampProvider.now;
       return Scheduler2;
-    }();
+    })();
     exports2.Scheduler = Scheduler;
   }
 });
@@ -29158,7 +29167,7 @@ var require_Scheduler = __commonJS({
 var require_AsyncScheduler = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/scheduler/AsyncScheduler.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -29176,11 +29185,11 @@ var require_AsyncScheduler = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.AsyncScheduler = void 0;
     var Scheduler_1 = require_Scheduler();
-    var AsyncScheduler = function(_super) {
+    var AsyncScheduler = (function(_super) {
       __extends(AsyncScheduler2, _super);
       function AsyncScheduler2(SchedulerAction, now) {
         if (now === void 0) {
@@ -29213,7 +29222,7 @@ var require_AsyncScheduler = __commonJS({
         }
       };
       return AsyncScheduler2;
-    }(Scheduler_1.Scheduler);
+    })(Scheduler_1.Scheduler);
     exports2.AsyncScheduler = AsyncScheduler;
   }
 });
@@ -29222,7 +29231,7 @@ var require_AsyncScheduler = __commonJS({
 var require_AsapScheduler = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/scheduler/AsapScheduler.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -29240,11 +29249,11 @@ var require_AsapScheduler = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.AsapScheduler = void 0;
     var AsyncScheduler_1 = require_AsyncScheduler();
-    var AsapScheduler = function(_super) {
+    var AsapScheduler = (function(_super) {
       __extends(AsapScheduler2, _super);
       function AsapScheduler2() {
         return _super !== null && _super.apply(this, arguments) || this;
@@ -29270,7 +29279,7 @@ var require_AsapScheduler = __commonJS({
         }
       };
       return AsapScheduler2;
-    }(AsyncScheduler_1.AsyncScheduler);
+    })(AsyncScheduler_1.AsyncScheduler);
     exports2.AsapScheduler = AsapScheduler;
   }
 });
@@ -29305,7 +29314,7 @@ var require_async = __commonJS({
 var require_QueueAction = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/scheduler/QueueAction.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -29323,11 +29332,11 @@ var require_QueueAction = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.QueueAction = void 0;
     var AsyncAction_1 = require_AsyncAction();
-    var QueueAction = function(_super) {
+    var QueueAction = (function(_super) {
       __extends(QueueAction2, _super);
       function QueueAction2(scheduler, work) {
         var _this = _super.call(this, scheduler, work) || this;
@@ -29361,7 +29370,7 @@ var require_QueueAction = __commonJS({
         return 0;
       };
       return QueueAction2;
-    }(AsyncAction_1.AsyncAction);
+    })(AsyncAction_1.AsyncAction);
     exports2.QueueAction = QueueAction;
   }
 });
@@ -29370,7 +29379,7 @@ var require_QueueAction = __commonJS({
 var require_QueueScheduler = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/scheduler/QueueScheduler.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -29388,17 +29397,17 @@ var require_QueueScheduler = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.QueueScheduler = void 0;
     var AsyncScheduler_1 = require_AsyncScheduler();
-    var QueueScheduler = function(_super) {
+    var QueueScheduler = (function(_super) {
       __extends(QueueScheduler2, _super);
       function QueueScheduler2() {
         return _super !== null && _super.apply(this, arguments) || this;
       }
       return QueueScheduler2;
-    }(AsyncScheduler_1.AsyncScheduler);
+    })(AsyncScheduler_1.AsyncScheduler);
     exports2.QueueScheduler = QueueScheduler;
   }
 });
@@ -29420,7 +29429,7 @@ var require_queue = __commonJS({
 var require_AnimationFrameAction = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/scheduler/AnimationFrameAction.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -29438,12 +29447,12 @@ var require_AnimationFrameAction = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.AnimationFrameAction = void 0;
     var AsyncAction_1 = require_AsyncAction();
     var animationFrameProvider_1 = require_animationFrameProvider();
-    var AnimationFrameAction = function(_super) {
+    var AnimationFrameAction = (function(_super) {
       __extends(AnimationFrameAction2, _super);
       function AnimationFrameAction2(scheduler, work) {
         var _this = _super.call(this, scheduler, work) || this;
@@ -29479,7 +29488,7 @@ var require_AnimationFrameAction = __commonJS({
         return void 0;
       };
       return AnimationFrameAction2;
-    }(AsyncAction_1.AsyncAction);
+    })(AsyncAction_1.AsyncAction);
     exports2.AnimationFrameAction = AnimationFrameAction;
   }
 });
@@ -29488,7 +29497,7 @@ var require_AnimationFrameAction = __commonJS({
 var require_AnimationFrameScheduler = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/scheduler/AnimationFrameScheduler.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -29506,11 +29515,11 @@ var require_AnimationFrameScheduler = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.AnimationFrameScheduler = void 0;
     var AsyncScheduler_1 = require_AsyncScheduler();
-    var AnimationFrameScheduler = function(_super) {
+    var AnimationFrameScheduler = (function(_super) {
       __extends(AnimationFrameScheduler2, _super);
       function AnimationFrameScheduler2() {
         return _super !== null && _super.apply(this, arguments) || this;
@@ -29541,7 +29550,7 @@ var require_AnimationFrameScheduler = __commonJS({
         }
       };
       return AnimationFrameScheduler2;
-    }(AsyncScheduler_1.AsyncScheduler);
+    })(AsyncScheduler_1.AsyncScheduler);
     exports2.AnimationFrameScheduler = AnimationFrameScheduler;
   }
 });
@@ -29563,7 +29572,7 @@ var require_animationFrame = __commonJS({
 var require_VirtualTimeScheduler = __commonJS({
   "node_modules/rxjs/dist/cjs/internal/scheduler/VirtualTimeScheduler.js"(exports2) {
     "use strict";
-    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ function() {
+    var __extends = exports2 && exports2.__extends || /* @__PURE__ */ (function() {
       var extendStatics = function(d, b) {
         extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
           d2.__proto__ = b2;
@@ -29581,13 +29590,13 @@ var require_VirtualTimeScheduler = __commonJS({
         }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
       };
-    }();
+    })();
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.VirtualAction = exports2.VirtualTimeScheduler = void 0;
     var AsyncAction_1 = require_AsyncAction();
     var Subscription_1 = require_Subscription();
     var AsyncScheduler_1 = require_AsyncScheduler();
-    var VirtualTimeScheduler = function(_super) {
+    var VirtualTimeScheduler = (function(_super) {
       __extends(VirtualTimeScheduler2, _super);
       function VirtualTimeScheduler2(schedulerActionCtor, maxFrames) {
         if (schedulerActionCtor === void 0) {
@@ -29624,9 +29633,9 @@ var require_VirtualTimeScheduler = __commonJS({
       };
       VirtualTimeScheduler2.frameTimeFactor = 10;
       return VirtualTimeScheduler2;
-    }(AsyncScheduler_1.AsyncScheduler);
+    })(AsyncScheduler_1.AsyncScheduler);
     exports2.VirtualTimeScheduler = VirtualTimeScheduler;
-    var VirtualAction = function(_super) {
+    var VirtualAction = (function(_super) {
       __extends(VirtualAction2, _super);
       function VirtualAction2(scheduler, work, index) {
         if (index === void 0) {
@@ -29693,7 +29702,7 @@ var require_VirtualTimeScheduler = __commonJS({
         }
       };
       return VirtualAction2;
-    }(AsyncAction_1.AsyncAction);
+    })(AsyncAction_1.AsyncAction);
     exports2.VirtualAction = VirtualAction;
   }
 });
@@ -29768,9 +29777,9 @@ var require_isArrayLike = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.isArrayLike = void 0;
-    exports2.isArrayLike = function(x) {
+    exports2.isArrayLike = (function(x) {
       return x && typeof x.length === "number" && typeof x !== "function";
-    };
+    });
   }
 });
 
@@ -30660,7 +30669,7 @@ var require_Notification = __commonJS({
       NotificationKind2["ERROR"] = "E";
       NotificationKind2["COMPLETE"] = "C";
     })(NotificationKind = exports2.NotificationKind || (exports2.NotificationKind = {}));
-    var Notification = function() {
+    var Notification = (function() {
       function Notification2(kind, value, error) {
         this.kind = kind;
         this.value = value;
@@ -30699,7 +30708,7 @@ var require_Notification = __commonJS({
       };
       Notification2.completeNotification = new Notification2("C");
       return Notification2;
-    }();
+    })();
     exports2.Notification = Notification;
     function observeNotification(notification, observer) {
       var _a, _b, _c;
@@ -32679,10 +32688,10 @@ var require_scanInternals = __commonJS({
           var i = index++;
           state = hasState ? accumulator(state, value, i) : (hasState = true, value);
           emitOnNext && subscriber.next(state);
-        }, emitBeforeComplete && function() {
+        }, emitBeforeComplete && (function() {
           hasState && subscriber.next(state);
           subscriber.complete();
-        }));
+        })));
       };
     }
     exports2.scanInternals = scanInternals;
@@ -35286,13 +35295,13 @@ var require_timeInterval = __commonJS({
       });
     }
     exports2.timeInterval = timeInterval;
-    var TimeInterval = /* @__PURE__ */ function() {
+    var TimeInterval = /* @__PURE__ */ (function() {
       function TimeInterval2(value, interval) {
         this.value = value;
         this.interval = interval;
       }
       return TimeInterval2;
-    }();
+    })();
     exports2.TimeInterval = TimeInterval;
   }
 });
@@ -35867,15 +35876,15 @@ var require_zipWith = __commonJS({
 var require_cjs = __commonJS({
   "node_modules/rxjs/dist/cjs/index.js"(exports2) {
     "use strict";
-    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? function(o, m, k, k2) {
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       Object.defineProperty(o, k2, { enumerable: true, get: function() {
         return m[k];
       } });
-    } : function(o, m, k, k2) {
+    }) : (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       o[k2] = m[k];
-    });
+    }));
     var __exportStar = exports2 && exports2.__exportStar || function(m, exports3) {
       for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports3, p)) __createBinding(exports3, m, p);
     };
@@ -36874,7 +36883,7 @@ var require_subscribeEvent = __commonJS({
 var require_src6 = __commonJS({
   "node_modules/@microsoft/agents-copilotstudio-client/dist/src/index.js"(exports2) {
     "use strict";
-    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? function(o, m, k, k2) {
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       var desc = Object.getOwnPropertyDescriptor(m, k);
       if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
@@ -36883,10 +36892,10 @@ var require_src6 = __commonJS({
         } };
       }
       Object.defineProperty(o, k2, desc);
-    } : function(o, m, k, k2) {
+    }) : (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       o[k2] = m[k];
-    });
+    }));
     var __exportStar = exports2 && exports2.__exportStar || function(m, exports3) {
       for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports3, p)) __createBinding(exports3, m, p);
     };
@@ -37593,7 +37602,7 @@ function conversationsUrl(directConnectUrl) {
   u.pathname = u.pathname.replace(/\/+$/, "") + "/conversations";
   return u.toString();
 }
-async function preflightRuntime({ directConnectUrl, token, schemaName, agentId }) {
+async function preflightRuntime({ directConnectUrl, token, schemaName, agentId, environmentId }) {
   const url = conversationsUrl(directConnectUrl);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 25e3);
@@ -37633,8 +37642,8 @@ async function preflightRuntime({ directConnectUrl, token, schemaName, agentId }
   const withSnippet = snippet ? `: ${snippet}` : "";
   if (res.status === 404) {
     die(
-      `The agenticruntime has no agent at this endpoint (HTTP 404${withSnippet}). The most common cause is that the agent '${schemaName}' has not been published (a fresh clone is unpublished until you publish it). Publish it in Copilot Studio, or run \`pac copilot publish --bot-id ${agentId}\`, then retry.`,
-      { httpStatus: 404, schemaName, agentId, endpoint: url }
+      `The agenticruntime has no agent at this endpoint (HTTP 404${withSnippet}). The most common cause is that the agent '${schemaName}' has not been published (a fresh clone is unpublished until you publish it). Publish it in Copilot Studio, or invoke \`/mcs-assistant:publish-agent\` with agent '${agentId}' and environment '${environmentId}', then retry.`,
+      { httpStatus: 404, schemaName, agentId, environmentId, endpoint: url }
     );
   }
   if (res.status === 401) {
@@ -37662,6 +37671,7 @@ async function chat({
   token,
   schemaName,
   agentId,
+  environmentId,
   onActivity
 }) {
   const settings = { directConnectUrl, cloud };
@@ -37671,7 +37681,7 @@ async function chat({
   };
   const startActivities = [];
   if (!conversationId) {
-    await preflightRuntime({ directConnectUrl, token, schemaName, agentId });
+    await preflightRuntime({ directConnectUrl, token, schemaName, agentId, environmentId });
     log("Starting new conversation...");
     for await (const activity of client.startConversationStreaming({
       emitStartConversationEvent: true
@@ -37792,6 +37802,7 @@ async function main() {
       token,
       schemaName: config.schemaName,
       agentId: config.agentId,
+      environmentId: config.environmentId,
       onActivity: renderer ? (a) => renderer.onActivity(a) : void 0
     });
     const conversationId = result.conversationId;
