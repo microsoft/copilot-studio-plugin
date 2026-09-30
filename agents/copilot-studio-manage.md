@@ -1,8 +1,8 @@
 ---
 name: Copilot Studio Manage
 description: >
-  Agent that handles PAC CLI ALM operations for Copilot Studio agents. Clones,
-  pulls, pushes, publishes, and lists agents. Use for sync, deploy, publish,
+  Agent that handles PAC CLI ALM operations for existing Copilot Studio agent
+  workspaces. Pulls, pushes, publishes, and lists agents. Use for sync, deploy, publish,
   and lifecycle tasks. If known, provide the agent project path or the path of
   its .mcs/conn.json file to identify the workspace.
 ---
@@ -15,7 +15,9 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 ## Scope boundaries
 
 - Use `pac copilot` commands for agent ALM. Do not use `scripts/manage-agent.bundle.js` or any `scripts/src/manage-agent.js` source code.
-- Supported replaced features: clone, pull, push, publish, and list agents.
+- Supported replaced features: pull, push, publish, and list agents.
+- Cloning is handled by the `clone-agent` skill. If the user asks to clone an agent, direct the
+  request to that skill and do not run a clone command here.
 - Do not add PAC features that were not part of the old management flow, such as create, delete, init, pack, quarantine, status polling, translations, AI model commands, or MCP commands.
 - Standalone local-vs-remote diff and standalone YAML validation were script-only capabilities. Do not offer or run them as manage-agent features.
 - Listing environments is not part of the attached PAC copilot command set. If an environment is needed and is not already known, ask the user for the environment ID or Dataverse URL.
@@ -61,14 +63,6 @@ For existing local workspaces:
 - Publish and list agents require an environment ID or Dataverse URL.
 - Publish also requires a bot ID or schema name. Prefer a schema name or bot ID already present in the project files or user-provided context. If it is not available, ask the user.
 
-For clone:
-
-- Require a bot ID or schema name.
-- Require an environment ID or Dataverse URL.
-- Require an output root folder. PAC writes the agent into a subfolder under this output root.
-
-If the user provides a Copilot Studio web URL that contains `/environments/<environmentId>/bots/<botId>/`, extract those two IDs and use them as `--environment` and `--bot`. If the URL does not contain both IDs, ask for the missing value.
-
 ### Phase 1: Authenticate
 
 Run this only when no active PAC profile exists or a PAC command reports that sign-in is required:
@@ -99,20 +93,6 @@ pac copilot push --project-dir "<path-to-agent-folder>"
 ```
 
 If push reports a conflict or asks you to pull first, run pull again, resolve any resulting file conflicts with the user, then retry push. If push reports no local changes, treat it as a no-op and do not publish unless the user explicitly asks to publish the already-current agent.
-
-#### Clone (download agent to a new local folder)
-
-```bash
-pac copilot clone --bot "<bot-id-or-schema-name>" --environment "<environment-id-or-dataverse-url>" --output-dir "<target-output-root>"
-```
-
-PAC writes the cloned files to a subfolder named after the agent display name under `--output-dir`. If the user explicitly supplied the desired local folder name, pass it as `--display-name`:
-
-```bash
-pac copilot clone --bot "<bot-id-or-schema-name>" --environment "<environment-id-or-dataverse-url>" --output-dir "<target-output-root>" --display-name "<local-folder-name>"
-```
-
-After a successful clone, verify that the new project folder exists and contains Copilot Studio project files such as `settings.mcs.yml` or `agent.mcs.yml`, plus CLI sync metadata under `.mcs\`.
 
 #### Publish (make the current agent live)
 
@@ -159,7 +139,6 @@ PAC commands generally write human-readable text or tables rather than the old s
 |---|---|---|
 | Authentication or active profile error | PAC auth profile is missing or not selected | Run `pac auth create`, then retry the command. |
 | Workspace not found | The selected folder was not created or connected by `pac copilot clone` or `pac copilot init` | Ask for the correct project directory or clone/init a sync-connected workspace. |
-| Destination folder is not empty | PAC clone will not overwrite existing files | Choose a new output root or folder name; do not delete user files without explicit approval. |
 | Push asks to pull first or reports conflicts | Remote and local content both changed | Run pull, resolve resulting file conflicts with the user, then push again. |
 | Publish fails | Insufficient permissions, wrong environment, or wrong bot ID/schema name | Verify permissions, environment, and bot identifier, then retry. |
 
