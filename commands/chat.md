@@ -1,7 +1,7 @@
 ---
 description: Chat with a locally-cloned Copilot Studio CLI (agentic-loop) agent to test it, streaming turns against the published agent via the agenticruntime endpoint.
 argument-hint: Optional agent name/path and the first message to send
-allowed-tools: Skill, Bash(node *chat-with-agent.bundle.js*), Read, Write, Glob, Grep, Task, WebFetch(domain:raw.githubusercontent.com)
+allowed-tools: Skill, Bash(pac *), Bash(node *chat-with-agent.bundle.js*), Read, Write, Glob, Grep, Task, WebFetch(domain:raw.githubusercontent.com)
 ---
 
 # Chat with a Copilot Studio CLI Agent
@@ -161,9 +161,11 @@ final `text` is the answer, `reasoning` is the agent's thinking, and `steps` are
   require both `agentId` and `environmentId` from the error payload, then invoke
   `mcs-assistant:publish-agent` with those exact values. Let the skill resolve the target and obtain
   its own required confirmation; do not run a publish command directly. Retry the same chat turn only
-  after the skill reports a successful publish. If either identifier is absent, stop and ask for the
-  missing value. Note that 404 can occasionally have other causes (wrong environment/schema) if
-  publishing does not resolve it.
+  after the skill reports a successful publish. When a custom direct-connect URL was used, the
+  script intentionally omits these identifiers because the local configuration does not prove the
+  endpoint's identity; stop and require an explicit publish target instead of reusing local values.
+  If either identifier is otherwise absent, stop and ask for the missing value. Note that 404 can
+  occasionally have other causes (wrong environment/schema) if publishing does not resolve it.
 
 **Output modes.** Add `--raw` to get the full, unfiltered activity payloads (start + turn) for
 debugging. Add `--pretty` for a colorized, live terminal chat experience (reasoning in cyan, tool

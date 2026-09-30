@@ -37602,7 +37602,7 @@ function conversationsUrl(directConnectUrl) {
   u.pathname = u.pathname.replace(/\/+$/, "") + "/conversations";
   return u.toString();
 }
-async function preflightRuntime({ directConnectUrl, token, schemaName, agentId, environmentId }) {
+async function preflightRuntime({ directConnectUrl, token, publishTarget }) {
   const url = conversationsUrl(directConnectUrl);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 25e3);
@@ -37641,9 +37641,21 @@ async function preflightRuntime({ directConnectUrl, token, schemaName, agentId, 
   const snippet = bodyText.trim().split("\n")[0].slice(0, 200);
   const withSnippet = snippet ? `: ${snippet}` : "";
   if (res.status === 404) {
+    if (!publishTarget) {
+      die(
+        `The agenticruntime has no agent at this endpoint (HTTP 404${withSnippet}). Because the endpoint came from --direct-connect-url, its agent and environment cannot be verified from the local configuration. Resolve an explicit publish target before invoking \`/mcs-assistant:publish-agent\`, then retry.`,
+        { httpStatus: 404, endpoint: url }
+      );
+    }
     die(
-      `The agenticruntime has no agent at this endpoint (HTTP 404${withSnippet}). The most common cause is that the agent '${schemaName}' has not been published (a fresh clone is unpublished until you publish it). Publish it in Copilot Studio, or invoke \`/mcs-assistant:publish-agent\` with agent '${agentId}' and environment '${environmentId}', then retry.`,
-      { httpStatus: 404, schemaName, agentId, environmentId, endpoint: url }
+      `The agenticruntime has no agent at this endpoint (HTTP 404${withSnippet}). The most common cause is that the agent '${publishTarget.schemaName}' has not been published (a fresh clone is unpublished until you publish it). Publish it in Copilot Studio, or invoke \`/mcs-assistant:publish-agent\` with agent '${publishTarget.agentId}' and environment '${publishTarget.environmentId}', then retry.`,
+      {
+        httpStatus: 404,
+        schemaName: publishTarget.schemaName,
+        agentId: publishTarget.agentId,
+        environmentId: publishTarget.environmentId,
+        endpoint: url
+      }
     );
   }
   if (res.status === 401) {
@@ -37669,9 +37681,7 @@ async function chat({
   directConnectUrl,
   cloud,
   token,
-  schemaName,
-  agentId,
-  environmentId,
+  publishTarget,
   onActivity
 }) {
   const settings = { directConnectUrl, cloud };
@@ -37681,7 +37691,7 @@ async function chat({
   };
   const startActivities = [];
   if (!conversationId) {
-    await preflightRuntime({ directConnectUrl, token, schemaName, agentId, environmentId });
+    await preflightRuntime({ directConnectUrl, token, publishTarget });
     log("Starting new conversation...");
     for await (const activity of client.startConversationStreaming({
       emitStartConversationEvent: true
@@ -37747,6 +37757,11 @@ async function main() {
     tenantId: config.tenantId
   });
   const directConnectUrl = args.directConnectUrl || buildDirectConnectUrl(config.environmentId, config.schemaName, cloud);
+  const publishTarget = args.directConnectUrl ? null : {
+    schemaName: config.schemaName,
+    agentId: config.agentId,
+    environmentId: config.environmentId
+  };
   const scope = scopeForCloud(cloud);
   if (args.dryRun) {
     process.stdout.write(
@@ -37800,9 +37815,7 @@ async function main() {
       directConnectUrl,
       cloud,
       token,
-      schemaName: config.schemaName,
-      agentId: config.agentId,
-      environmentId: config.environmentId,
+      publishTarget,
       onActivity: renderer ? (a) => renderer.onActivity(a) : void 0
     });
     const conversationId = result.conversationId;
