@@ -1,7 +1,7 @@
 ---
 description: Migrate a Copilot Studio agent from the previous architecture to the new agentic loop, cloning it first if it is not already present locally.
 argument-hint: Agent name or path to describe (and source environment if it must be cloned)
-allowed-tools: Bash(pac), Bash(node *convert-actions-to-tools.js*), Read, Write, Glob, Grep, WebFetch(domain:raw.githubusercontent.com), Task
+allowed-tools: Skill, Bash(pac), Bash(node *convert-actions-to-tools.js*), Read, Write, Glob, Grep, WebFetch(domain:raw.githubusercontent.com), Task
 ---
 
 # Copilot Studio Agent Migration
@@ -223,12 +223,11 @@ Do not treat migration-plan approval as consent for this local write. If the use
 before push without discarding the completed migration files. Record confirmation and the exact
 target directory in `MIGRATION-PLAN-<random>.md`; confirmation does not apply if the target changes.
 
-After confirmation, delegate the push to the **Copilot Studio Manage** sub-agent (you can use the
-latest good, mid-tier AI model). There's no need to execute `pac copilot pack`; prefer delegating to
-the **Copilot Studio Manage** sub-agent for `pac copilot push`. Provide it with the target project
-directory, target environment ID, and an explicit statement that the user confirmed the
-prerequisite pull for that exact workspace. Confirm that the push was successful before completing
-the migration workflow. Publishing is not necessary.
+After confirmation, invoke `mcs-assistant:push-agent` directly. There's no need to execute
+`pac copilot pack`. Provide the skill with the target project directory, target environment ID, and
+an explicit statement that the user confirmed the prerequisite pull for that exact workspace.
+Confirm that the push was successful before completing the migration workflow. Publishing is not
+necessary.
 
 ## Output Guidance
 

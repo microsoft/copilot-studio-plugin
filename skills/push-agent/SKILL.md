@@ -58,8 +58,8 @@ Resolve the workspace in this order:
 
 1. If the user provides a project directory, use it.
 2. If the user provides a `.mcs/conn.json` path, use the parent directory of `.mcs`.
-3. Otherwise, search the current working tree for directories containing `.mcs/conn.json`,
-   `settings.mcs.yml`, or `agent.mcs.yml`.
+3. Otherwise, search the current working tree for directories containing `.mcs/conn.json` and
+   either `settings.mcs.yml` or `agent.mcs.yml`.
 4. If several workspaces match, present their paths and ask the user to choose one.
 
 Require an existing directory containing `.mcs/conn.json` plus `settings.mcs.yml` or
