@@ -1,9 +1,9 @@
 ---
 name: Copilot Studio Manage
 description: >
-  Agent that handles PAC CLI ALM operations for Copilot Studio agents. Clones,
-  pulls, publishes, and lists agents. Use for sync, publish,
-  and lifecycle tasks. If known, provide the agent project path or the path of
+  Agent that handles PAC CLI ALM operations for existing Copilot Studio agent
+  workspaces. Publishes and lists agents. Use for publish and listing tasks.
+  If known, provide the agent project path or the path of
   its .mcs/conn.json file to identify the workspace.
 ---
 
@@ -15,9 +15,13 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 ## Scope boundaries
 
 - Use `pac copilot` commands for agent ALM. Do not use `scripts/manage-agent.bundle.js` or any `scripts/src/manage-agent.js` source code.
-- Supported replaced features: clone, pull, publish, and list agents.
+- Supported replaced features: publish and list agents.
 - Pushing is handled by the `push-agent` skill. If the user asks to upload or sync local changes to
   Copilot Studio, direct the request to that skill and do not run a push command here.
+- Pulling is handled by the `mcs-assistant:pull-agent` skill. If the user asks to pull or sync
+  remote changes into a local workspace, invoke that skill and do not run a pull command here.
+- Cloning is handled by the `clone-agent` skill. If the user asks to clone an agent, direct the
+  request to that skill and do not run a clone command here.
 - Do not add PAC features that were not part of the old management flow, such as create, delete, init, pack, quarantine, status polling, translations, AI model commands, or MCP commands.
 - Standalone local-vs-remote diff and standalone YAML validation were script-only capabilities. Do not offer or run them as manage-agent features.
 - Listing environments is not part of the attached PAC copilot command set. If an environment is needed and is not already known, ask the user for the environment ID or Dataverse URL.
@@ -28,9 +32,10 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 2. **Delegate push workflows.** The `push-agent` skill owns the required pull-before-push sequence.
    Do not run `pac copilot push` here.
 3. **Push before publish.** If the user asks to publish local file changes, have `push-agent`
-   complete successfully before publishing.
-4. **Do not publish a no-op push.** If `push-agent` reports that there was nothing to send, tell the
-   user: "The agent is already up to date - nothing to publish."
+   complete successfully before publishing. Require explicit confirmation for its prerequisite
+   pull in the selected workspace; pass that confirmation and workspace to the skill.
+4. **Handle no-op pushes.** If `push-agent` reports that there was nothing to send, do not publish
+   unless the user explicitly asked to publish the already-current agent.
 5. **Always warn before publishing.** Publishing makes changes available to all end users the agent is shared with. Before publishing, tell the user: "This will publish the agent and make it live for all users it's shared with. Should I proceed?"
 6. **Use command completion, not sleeps.** When iterating (edit -> pull -> push -> publish -> test), wait for each PAC command to complete successfully. Do not use time-based waits as proof that publish or sync completed.
 7. **Do not edit CLI state.** Never hand-edit files under `.mcs\`; they are CLI-managed sync metadata.
@@ -62,17 +67,8 @@ For PAC sync commands, the project directory must be a workspace created or conn
 
 For existing local workspaces:
 
-- Pull requires only the project directory.
 - Publish and list agents require an environment ID or Dataverse URL.
 - Publish also requires a bot ID or schema name. Prefer a schema name or bot ID already present in the project files or user-provided context. If it is not available, ask the user.
-
-For clone:
-
-- Require a bot ID or schema name.
-- Require an environment ID or Dataverse URL.
-- Require an output root folder. PAC writes the agent into a subfolder under this output root.
-
-If the user provides a Copilot Studio web URL that contains `/environments/<environmentId>/bots/<botId>/`, extract those two IDs and use them as `--environment` and `--bot`. If the URL does not contain both IDs, ask for the missing value.
 
 ### Phase 1: Authenticate
 
@@ -84,30 +80,6 @@ pac auth create
 
 ### Phase 2: Execute command
 
-#### Pull (download remote changes)
-
-Run from any location by passing the project directory explicitly:
-
-```bash
-pac copilot pull --project-dir "<path-to-agent-folder>"
-```
-
-Pull merges remote changes into the local workspace and may write local files. If the user has uncommitted local work, mention that pull can modify files before running it.
-
-#### Clone (download agent to a new local folder)
-
-```bash
-pac copilot clone --bot "<bot-id-or-schema-name>" --environment "<environment-id-or-dataverse-url>" --output-dir "<target-output-root>"
-```
-
-PAC writes the cloned files to a subfolder named after the agent display name under `--output-dir`. If the user explicitly supplied the desired local folder name, pass it as `--display-name`:
-
-```bash
-pac copilot clone --bot "<bot-id-or-schema-name>" --environment "<environment-id-or-dataverse-url>" --output-dir "<target-output-root>" --display-name "<local-folder-name>"
-```
-
-After a successful clone, verify that the new project folder exists and contains Copilot Studio project files such as `settings.mcs.yml` or `agent.mcs.yml`, plus CLI sync metadata under `.mcs\`.
-
 #### Publish (make the current agent live)
 
 Publishing makes the agent live for users it is shared with. Always confirm with the user before running it.
@@ -116,10 +88,10 @@ Publishing makes the agent live for users it is shared with. Always confirm with
 pac copilot publish --bot "<bot-id-or-schema-name>" --environment "<environment-id-or-dataverse-url>"
 ```
 
-Use this after a successful push when the user wants the pushed changes to be live or testable. If publishing follows local edits, the full sequence is:
-
-1. Have the `push-agent` skill pull and upload the local changes.
-2. After a successful non-no-op push, run:
+Use this when the user wants the agent to be live or testable. If publishing follows local edits,
+have the `push-agent` skill pull and upload the local changes first. After a successful push (or
+a no-op when the user explicitly asks to publish the already-current agent), confirm publication,
+then run:
 
 ```bash
 pac copilot publish --bot "<bot-id-or-schema-name>" --environment "<environment-id-or-dataverse-url>"
@@ -154,7 +126,6 @@ PAC commands generally write human-readable text or tables rather than the old s
 |---|---|---|
 | Authentication or active profile error | PAC auth profile is missing or not selected | Run `pac auth create`, then retry the command. |
 | Workspace not found | The selected folder was not created or connected by `pac copilot clone` or `pac copilot init` | Ask for the correct project directory or clone/init a sync-connected workspace. |
-| Destination folder is not empty | PAC clone will not overwrite existing files | Choose a new output root or folder name; do not delete user files without explicit approval. |
 | `push-agent` reports pull or push conflicts | Remote and local content both changed | Let the skill stop, resolve the local conflicts with the user, then invoke it again. |
 | Publish fails | Insufficient permissions, wrong environment, or wrong bot ID/schema name | Verify permissions, environment, and bot identifier, then retry. |
 
