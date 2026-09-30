@@ -495,7 +495,7 @@ function conversationsUrl(directConnectUrl) {
 // single plain POST to the conversations endpoint and inspect the HTTP status before
 // handing off to the streaming client. Note: a 200 here starts a throwaway conversation
 // server-side (POST is not read-only), which is acceptable for a test/dev tool.
-async function preflightRuntime({ directConnectUrl, token, schemaName, agentId }) {
+async function preflightRuntime({ directConnectUrl, token, publishTarget }) {
   const url = conversationsUrl(directConnectUrl);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 25000);
@@ -541,12 +541,28 @@ async function preflightRuntime({ directConnectUrl, token, schemaName, agentId }
   const withSnippet = snippet ? `: ${snippet}` : "";
 
   if (res.status === 404) {
+    if (!publishTarget) {
+      die(
+        `The agenticruntime has no agent at this endpoint (HTTP 404${withSnippet}). ` +
+          `Because the endpoint came from --direct-connect-url, its agent and environment cannot ` +
+          `be verified from the local configuration. Resolve an explicit publish target before ` +
+          `invoking \`/mcs-assistant:publish-agent\`, then retry.`,
+        { httpStatus: 404, endpoint: url }
+      );
+    }
     die(
       `The agenticruntime has no agent at this endpoint (HTTP 404${withSnippet}). ` +
-        `The most common cause is that the agent '${schemaName}' has not been published ` +
+        `The most common cause is that the agent '${publishTarget.schemaName}' has not been published ` +
         `(a fresh clone is unpublished until you publish it). Publish it in Copilot Studio, ` +
-        `or run \`pac copilot publish --bot-id ${agentId}\`, then retry.`,
-      { httpStatus: 404, schemaName, agentId, endpoint: url }
+        `or invoke \`/mcs-assistant:publish-agent\` with agent '${publishTarget.agentId}' and environment ` +
+        `'${publishTarget.environmentId}', then retry.`,
+      {
+        httpStatus: 404,
+        schemaName: publishTarget.schemaName,
+        agentId: publishTarget.agentId,
+        environmentId: publishTarget.environmentId,
+        endpoint: url,
+      }
     );
   }
   if (res.status === 401) {
@@ -576,8 +592,7 @@ async function chat({
   directConnectUrl,
   cloud,
   token,
-  schemaName,
-  agentId,
+  publishTarget,
   onActivity,
 }) {
   const settings = { directConnectUrl, cloud };
@@ -587,7 +602,7 @@ async function chat({
 
   const startActivities = [];
   if (!conversationId) {
-    await preflightRuntime({ directConnectUrl, token, schemaName, agentId });
+    await preflightRuntime({ directConnectUrl, token, publishTarget });
     log("Starting new conversation...");
     for await (const activity of client.startConversationStreaming({
       emitStartConversationEvent: true,
@@ -672,6 +687,13 @@ async function main() {
   const directConnectUrl =
     args.directConnectUrl ||
     buildDirectConnectUrl(config.environmentId, config.schemaName, cloud);
+  const publishTarget = args.directConnectUrl
+    ? null
+    : {
+        schemaName: config.schemaName,
+        agentId: config.agentId,
+        environmentId: config.environmentId,
+      };
   const scope = scopeForCloud(cloud);
 
   // --dry-run: report the resolved connection plan without authenticating or chatting. This must
@@ -740,8 +762,7 @@ async function main() {
       directConnectUrl,
       cloud,
       token,
-      schemaName: config.schemaName,
-      agentId: config.agentId,
+      publishTarget,
       onActivity: renderer ? (a) => renderer.onActivity(a) : undefined,
     });
 
