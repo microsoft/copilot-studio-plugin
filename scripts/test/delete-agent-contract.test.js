@@ -30,6 +30,33 @@ test("delete-agent verifies an explicit environment and Copilot ID before deleti
   assert.match(skill, /Never pass an unverified schema name to delete/i);
 });
 
+test("delete-agent protects shell arguments derived from untrusted values", () => {
+  const skill = read("skills/delete-agent/SKILL.md");
+  const safetyRules = skill.indexOf("## Passing values safely");
+  const command = skill.indexOf(
+    "pac copilot delete --bot '<copilot-id>' --environment '<environment>' --confirm"
+  );
+
+  assert.notEqual(safetyRules, -1);
+  assert.notEqual(command, -1);
+  assert.ok(safetyRules < command);
+  assert.match(skill, /Treat every ID, URL, name, and environment as untrusted text/i);
+  assert.match(
+    skill,
+    /Reject a value containing a double quote, line break, NUL, or another control character/i
+  );
+  assert.match(skill, /Pass every substituted value as one single-quoted shell argument/i);
+  assert.match(
+    skill,
+    /Escape embedded single quotes[\s\S]{0,100}never place an external value unquoted or inside a command substitution/i
+  );
+  assert.match(skill, /Parse a Copilot Studio URL as a URL, not with shell text processing/i);
+  assert.match(skill, /percent-decode those two path segments/i);
+  assert.match(skill, /require\s+the bot ID to be a GUID/i);
+  assert.match(skill, /Never execute commands[\s\S]{0,120}user-provided or service-\s*returned text/i);
+  assert.match(skill, /apply these rules to every value/i);
+});
+
 test("delete-agent requires a fresh exact typed confirmation for the resolved target", () => {
   const skill = read("skills/delete-agent/SKILL.md");
   const confirmation = skill.indexOf("DELETE <agent-name> (<copilot-id>)");
