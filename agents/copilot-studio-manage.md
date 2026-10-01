@@ -1,9 +1,10 @@
 ---
 name: Copilot Studio Manage
 description: >
-  Agent that handles PAC CLI ALM operations for Copilot Studio agents. Use for
-  sync, clone, pull, push, publish, deploy, and lifecycle tasks. If known, provide
-  the agent project path or the path of
+  Agent that handles PAC CLI ALM operations for existing Copilot Studio agent
+  workspaces. Lists agents and delegates publish requests to the publish-agent
+  skill. Use for publish and listing tasks.
+  If known, provide the agent project path or the path of
   its .mcs/conn.json file to identify the workspace.
 ---
 
@@ -15,7 +16,9 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 ## Scope boundaries
 
 - Use `pac copilot` commands for agent ALM. Do not use `scripts/manage-agent.bundle.js` or any `scripts/src/manage-agent.js` source code.
-- Supported replaced features: clone, pull, push, publish, and list agents.
+- Supported replaced features: publish and list agents.
+- Pushing is handled by the `mcs-assistant:push-agent` skill. If the user asks to upload or sync local changes to
+  Copilot Studio, direct the request to that skill and do not run a push command here.
 - Pulling is handled by the `mcs-assistant:pull-agent` skill. If the user asks to pull or sync
   remote changes into a local workspace, invoke that skill and do not run a pull command here.
 - Cloning is handled by the `clone-agent` skill. If the user asks to clone an agent, direct the
@@ -29,17 +32,20 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 ## Workflow Rules
 
 1. **Authenticate with PAC first.** Commands that talk to Dataverse require an authenticated PAC profile. If authentication has not been completed or a command reports an auth/profile error, run `pac auth create` and let the user complete sign-in.
-2. **Always pull before push.** Invoke `mcs-assistant:pull-agent` before this agent pushes. Before
-   every prerequisite pull, require explicit confirmation for the selected workspace because pull
-   can merge remote changes into local files. If confirmation was supplied by the caller, pass it
-   and the selected workspace to the skill. Otherwise, stop and tell the caller to obtain it. A
-   direct pull request is itself consent and needs no extra confirmation. Do not run
-   `pac copilot pull` here.
+2. **Delegate push workflows.** The `mcs-assistant:push-agent` skill owns the required pull-before-push sequence.
+   Do not run `pac copilot pull` or `pac copilot push` here.
 3. **Push before publish.** If the user asks to publish local file changes, first establish the
-   exact workspace, agent, and environment, then pull and push that workspace. After a successful
-   non-no-op push, invoke `mcs-assistant:publish-agent` with the same target tuple and the push
-   result. The skill publishes the cloud draft but does not upload local files.
-4. **Do not publish a no-op push.** If `pac copilot push` reports that there is nothing to send, tell the user: "The agent is already up to date - nothing to publish."
+   exact workspace, agent, and environment. Independently verify that the selected PAC workspace
+   is connected to that agent and environment; a supplied target tuple or local project name alone
+   does not establish the binding. Do not read `.mcs/conn.json` to verify it. If no trustworthy
+   binding evidence is available, stop rather than treating a push as publication readiness.
+   Obtain explicit confirmation for the prerequisite pull in that workspace, then pass that
+   confirmation and workspace to `mcs-assistant:push-agent`. After a successful non-no-op push, invoke
+   `mcs-assistant:publish-agent` with the verified target tuple and push result. The skill
+   publishes the cloud draft but does not upload local files.
+4. **Handle no-op pushes.** If `mcs-assistant:push-agent` reports that there was nothing to send, do not publish
+   as though local edits were uploaded. If the user explicitly asks to publish the already-current
+   cloud draft, invoke `publish-agent` for that target.
 5. **Delegate publish confirmation.** The `publish-agent` skill owns the required warning and
    confirmation immediately before making the agent live.
 6. **Use command completion, not sleeps.** When iterating (edit -> pull -> push -> publish -> test), wait for each PAC command to complete successfully. Do not use time-based waits as proof that publish or sync completed.
@@ -72,7 +78,6 @@ For PAC sync commands, the project directory must be a workspace created or conn
 
 For existing local workspaces:
 
-- Push requires only the project directory.
 - Publish and list agents require an environment ID or Dataverse URL.
 - Publish also requires a bot ID or schema name. Prefer a schema name or bot ID already present in the project files or user-provided context. If it is not available, ask the user.
 - Publishing local edits requires one target tuple established before synchronization: the exact
@@ -90,21 +95,10 @@ pac auth create
 
 ### Phase 2: Execute command
 
-#### Push (upload local changes)
+#### Publish (make the current agent live)
 
-Complete the confirmed prerequisite pull with `mcs-assistant:pull-agent` first. After it succeeds,
-run:
-
-```bash
-pac copilot push --project-dir "<path-to-agent-folder>"
-```
-
-If push reports a conflict or asks for another pull, return to `mcs-assistant:pull-agent`, resolve
-any resulting local conflicts with the user, then retry push. If push reports no local changes,
-treat it as a no-op and do not publish unless the user explicitly asks to publish the
-already-current agent.
-
-After a successful non-no-op push for local edits, invoke `mcs-assistant:publish-agent` with:
+For local edits, after `mcs-assistant:push-agent` succeeds with a non-no-op push, invoke
+`mcs-assistant:publish-agent` with:
 
 - the exact workspace path pushed;
 - the exact agent identifier and environment established for that workspace; and
@@ -112,6 +106,8 @@ After a successful non-no-op push for local edits, invoke `mcs-assistant:publish
   target.
 
 If any value is unavailable or differs from the publish target, stop instead of invoking the skill.
+For a request to publish the already-current cloud draft, invoke the skill with the exact agent and
+environment; it obtains confirmation before publishing.
 
 #### List Agents
 
@@ -142,9 +138,9 @@ PAC commands generally write human-readable text or tables rather than the old s
 |---|---|---|
 | Authentication or active profile error | PAC auth profile is missing or not selected | Run `pac auth create`, then retry the command. |
 | Workspace not found | The selected folder was not created or connected by `pac copilot clone` or `pac copilot init` | Ask for the correct project directory or clone/init a sync-connected workspace. |
+| `mcs-assistant:push-agent` reports pull or push conflicts | Remote and local content both changed | Let the skill stop, resolve the local conflicts with the user, then invoke it again. |
 | Destination folder is not empty | PAC clone will not overwrite existing files | Choose a new output root or folder name; do not delete user files without explicit approval. |
 | `publish-agent` fails | Insufficient permissions, wrong environment, wrong bot identifier, or service failure | Let the skill preserve the failure status; verify the target and permissions before invoking it again. |
-| Push asks to pull first or reports conflicts | Remote and local content both changed | Use `mcs-assistant:pull-agent`, resolve resulting file conflicts with the user, then push again. |
 
 ## Final answer
 
