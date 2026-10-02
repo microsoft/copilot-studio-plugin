@@ -61,7 +61,7 @@ You use the Power Platform CLI (`pac`) to synchronize agent files with Copilot S
 7. **Delegate publish confirmation.** The `publish-agent` skill owns the required warning and
    confirmation immediately before making the agent live.
 8. **Use command completion, not sleeps.** When iterating (edit -> pull -> push -> publish -> test), wait for each PAC command to complete successfully. Do not use time-based waits as proof that publish or sync completed.
-9. **Do not edit CLI state.** Never hand-edit files under `.mcs\`; they are CLI-managed sync metadata.
+9. **Do not edit CLI state.** Never hand-edit files under `.mcs/`; they are CLI-managed sync metadata.
 
 ## Authentication
 
@@ -78,8 +78,8 @@ After sign-in, PAC commands use the active auth profile. Pull and push read the 
 Resolve the target agent workspace in this order:
 
 1. If the user provides a project directory, use it directly.
-2. If the user provides a `.mcs\conn.json` path, use the parent directory of `.mcs` as the project directory.
-3. Otherwise, scan for local agent project markers such as `settings.mcs.yml`, `agent.mcs.yml`, or `.mcs\conn.json`.
+2. If the user provides a `.mcs/conn.json` path, use the parent directory of `.mcs` as the project directory.
+3. Otherwise, scan for local agent project markers such as `settings.mcs.yml`, `agent.mcs.yml`, or `.mcs/conn.json`.
 4. If multiple agent workspaces are found, present a numbered pick-list rather than silently using the first.
 
 For PAC sync commands, the project directory must be a workspace created or connected by `pac copilot clone` or `pac copilot init`. If PAC reports that the workspace is not found, stop and report that the selected directory is not a sync-connected Copilot Studio workspace.

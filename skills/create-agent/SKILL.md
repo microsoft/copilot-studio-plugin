@@ -2,7 +2,7 @@
 name: create-agent
 description: Create a new MCS2 Copilot Studio agent and PAC-connected local workspace with `pac copilot init`, then optionally add modern instructions, skills, tools, knowledge, and settings before synchronizing it. Use when the user asks to create, scaffold, initialize, or build a Copilot Studio agent.
 argument-hint: Business scenario or instructions, plus the environment and local project folder
-allowed-tools: Bash(pac *), Read, Write, Glob, Grep, Skill
+allowed-tools: Bash(pac auth *), Bash(pac copilot init *), Bash(pac copilot pull *), Bash(pac copilot push *), Read, Write, Glob, Grep, Skill
 ---
 
 # Create a Copilot Studio Agent with PAC CLI
@@ -198,11 +198,17 @@ For guided design, classify each accepted requirement:
 - supported agent-level configuration -> settings.
 
 Before writing knowledge or skills, read and follow `reference/knowledge-schema.md` or
-`reference/skill-schema.md` from this plugin. Every authored `*.mcs.yml` except
-`settings.mcs.yml` must contain `mcs.metadata` and `kind`.
+`reference/skill-schema.md` from this plugin. Every authored `*.mcs.yml` component must follow its
+authoritative schema and contain `mcs.metadata`. Require `kind` only when that component schema
+defines it. Uploaded-file knowledge sidecars and uploaded-skill payload sidecars are metadata-only
+and must omit `kind`; uploaded-file knowledge sidecars must also omit `source`.
 
-Use the publisher prefix from the scaffolded `schemaName` for new flat component filenames. Keep
-`<agent-schemaName> + "." + <filename-without-.mcs.yml>` at most 100 characters. Do not invent
+For generic flat components outside the knowledge and skill layouts, use the publisher prefix from
+the scaffolded `schemaName` and keep
+`<agent-schemaName> + "." + <filename-without-.mcs.yml>` at most 100 characters. For knowledge and
+skill components, follow the filename and schema-name budgets in their authoritative references
+instead. In particular, keep an uploaded knowledge sidecar's on-disk stem unprefixed as
+`<slug>_<id>.mcs.yml`; PAC qualifies it as `<agent-schemaName>.file.<slug>_<id>`. Do not invent
 connections, claim unavailable live data works, or create speculative components. Leave `.mcs/`
 and `agent.sync.yaml` untouched.
 
@@ -227,7 +233,8 @@ pac copilot push --project-dir '<project-dir>'
 Wait for completion. If PAC requires another pull or reports conflicts, pull, let the user resolve
 the resulting file conflicts, and retry only after resolution.
 
-After a successful non-no-op push, run one final pull:
+After every successful push, including an explicit `No local changes detected` result, run one
+final pull:
 
 ```bash
 pac copilot pull --project-dir '<project-dir>'
