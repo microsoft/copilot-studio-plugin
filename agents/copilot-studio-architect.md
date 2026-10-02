@@ -102,7 +102,7 @@ If the target project directory or describer report is missing, ask for the miss
 
 - Modify only the provided target agent project directory.
 - Never modify the source agent folder.
-- Do not hand-edit files under `.mcs\`; they are CLI-managed state.
+- Do not hand-edit files under `.mcs/`; they are CLI-managed state.
 - Preserve initialized identity fields such as `schemaName`, environment binding, connection references, template, language, and generated IDs unless the user explicitly asks for an identity change.
 - Preserve any already migrated files under `capabilities\tools`. Read them so instructions and skills can reference the available tools correctly. Do not overwrite connector or MCP tool YAML unless you have complete, concrete YAML fields and the change is required by the migration. Treat actions intentionally excluded by the approved migration plan as out of scope, not as missing tools to recreate.
 - Do not create design notes, migration plans, or JSON meta-description files in the project. The final implementation artifact is the YAML component set.
@@ -125,7 +125,9 @@ The target project follows this modern Copilot Studio CLI layout:
 └── .mcs/
 ```
 
-Every authored `*.mcs.yml` component except `settings.mcs.yml` starts with:
+Every authored component `*.mcs.yml` except the root `settings.mcs.yml` must follow its
+authoritative schema and contain `mcs.metadata`. The settings file follows the MCS2 settings schema
+instead; do not add component metadata to it. Component shapes that define `kind` start with:
 
 ```yaml
 mcs.metadata:
@@ -134,7 +136,13 @@ mcs.metadata:
 kind: <component kind>
 ```
 
-Use descriptive, orchestration-friendly metadata. Component files should use a slugified component name plus a short unique suffix, for example `answer-refund-questions_a1B2c3.mcs.yml`. Keep existing generated suffixes when editing existing files.
+Metadata-only sidecars are exceptions: uploaded-file knowledge sidecars and uploaded-skill payload
+sidecars must omit `kind`; uploaded-file knowledge sidecars must also omit `source`. Use
+descriptive, orchestration-friendly metadata. For generic flat components, use a slugified
+component name plus a short unique suffix, for example
+`answer-refund-questions_a1B2c3.mcs.yml`. Knowledge and skill components instead follow the exact
+filename and schema-name budgets in their authoritative references, including unprefixed uploaded
+knowledge sidecar stems. Keep existing generated suffixes when editing existing files.
 
 ## Settings YAML
 

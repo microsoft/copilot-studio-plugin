@@ -38,6 +38,8 @@ test("management uses the qualified push-agent identifier on every route", () =>
 
   assert.match(manager, /`mcs-assistant:push-agent`/);
   assert.doesNotMatch(manager, /`push-agent`/);
+  assert.match(manager, /`\.mcs\/conn\.json`/);
+  assert.doesNotMatch(manager, /\.mcs\\/);
 });
 
 test("PAC no-op reporting preserves possible auxiliary cloud side effects", () => {
