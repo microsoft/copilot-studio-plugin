@@ -7,6 +7,8 @@
  *   - greeting   : the start-conversation greeting (start turns only)
  *   - reasoning  : the agent's chain-of-thought steps (entities[].type === "thought")
  *   - steps      : tool/status cues (channelData.streamType === "informative")
+ *   - tool_calls : one record per tool call (entities[].type === "toolCall"), with the
+ *                  parameters the model filled in, the result, status and duration
  *   - text       : the final answer markdown (the terminal `message` / streamType "final")
  *   - attachments: files the agent produced, **materialized to disk** — the base64 blob
  *                  is written out and only { name, contentType, bytes, path } is returned,
@@ -62,6 +64,75 @@ function collectSteps(activities) {
     }
   }
   return out;
+}
+
+// Long tool results can carry large business payloads; keep the summary compact.
+const MAX_TOOL_RESULT_CHARS = 2000;
+
+// A repeated "started" in the cumulative stream must not undo a later status. Any status
+// other than "started" (completed, failed, or one we haven't seen) counts as later.
+const toolStatusRank = (status) => (status === "started" ? 0 : 1);
+
+// Tool calls usually arrive as `toolCall` entities on informative activities: one with
+// status "started" (filled/unfilled parameters) and one with status "completed"
+// (result, durationMs). Merge them into one record per toolCallId, in call order.
+// Parameter and result field names follow the runtime's own names so they can be matched
+// against `--raw`. Entities without a toolCallId can't be paired, so each one becomes its
+// own record rather than being merged with an unrelated call.
+function collectToolCalls(activities) {
+  const byId = new Map();
+  const present = (v) => v !== undefined && v !== null && v !== "";
+  let anonymous = 0;
+  for (const a of activities || []) {
+    for (const e of a.entities || []) {
+      if (e.type !== "toolCall") continue;
+      // Anonymous entries get their own map key space so they can never collide with a real id.
+      const key = e.toolCallId ? `id:${e.toolCallId}` : `anon:${anonymous}`;
+      const id = e.toolCallId || `anon:${e.toolName || "tool"}#${anonymous}`;
+      if (!e.toolCallId) anonymous++;
+      const call = byId.get(key) || { id };
+      // An entity from an earlier phase than the record's current status (a repeated
+      // "started" after "completed") must not overwrite anything; it may only fill gaps.
+      const stale =
+        e.status !== undefined &&
+        call.status !== undefined &&
+        toolStatusRank(e.status) < toolStatusRank(call.status);
+      const set = (field, value) => {
+        if (!stale || call[field] === undefined) call[field] = value;
+      };
+      if (e.toolName) set("name", e.toolName);
+      if (e.toolCategory) set("category", e.toolCategory);
+      if (e.status && !stale && e.status !== call.status) {
+        call.status = e.status;
+        // An error belongs to the status it came with; keep it only if this entity repeats it.
+        delete call.error;
+      }
+      // An empty object means "nothing filled yet", so it must not erase real values; an empty
+      // unfilledParameters list means "all filled now", so it does replace the earlier list.
+      const params = e.filledParameters;
+      if (params && typeof params === "object" && !Array.isArray(params) && Object.keys(params).length) {
+        set("filledParameters", params);
+      }
+      if (Array.isArray(e.unfilledParameters)) set("unfilledParameters", e.unfilledParameters);
+      if (typeof e.durationMs === "number") set("durationMs", e.durationMs);
+      if (!stale && e.result !== undefined && e.result !== null) {
+        const r = typeof e.result === "string" ? e.result : JSON.stringify(e.result);
+        if (r.length > MAX_TOOL_RESULT_CHARS) {
+          call.result = r.slice(0, MAX_TOOL_RESULT_CHARS);
+          call.resultTruncated = true;
+          call.resultLength = r.length;
+        } else {
+          call.result = r;
+          delete call.resultTruncated;
+          delete call.resultLength;
+        }
+      }
+      const error = present(e.error) ? e.error : e.errorMessage;
+      if (present(error) && (!stale || call.error === undefined)) call.error = error;
+      byId.set(key, call);
+    }
+  }
+  return [...byId.values()];
 }
 
 function finalText(activities) {
@@ -176,6 +247,7 @@ function summarizeTurn({
     greeting,
     reasoning: collectReasoning(activities),
     steps: collectSteps(activities),
+    tool_calls: collectToolCalls(activities),
     text: finalText(activities),
     attachments,
   };
@@ -186,6 +258,8 @@ module.exports = {
   // exported for reuse / testing
   collectReasoning,
   collectSteps,
+  collectToolCalls,
+  MAX_TOOL_RESULT_CHARS,
   finalText,
   materializeAttachments,
   decodeDataUrl,
