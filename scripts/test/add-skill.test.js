@@ -402,11 +402,11 @@ test("never truncates a slug in the pretty table", () => {
   assert.ok(out.includes(slug), `slug was truncated:\n${out}`);
 });
 
-test("drops the Copilot Studio qualifier from the heading when listing every platform", () => {
+test("always qualifies the heading with Copilot Studio, even if asked to list everything", () => {
   const skills = [{ slug: "s", name: "S", description: "d", hasBundle: false }];
-  assert.match(renderPrettyList(skills, { all: true }), /1 skills\b/);
-  assert.ok(!renderPrettyList(skills, { all: true }).includes("for Copilot Studio"));
-  assert.ok(renderPrettyList(skills).includes("for Copilot Studio"));
+  assert.match(renderPrettyList(skills), /1 skills for Copilot Studio\b/);
+  // A stray `all` option must not drop the Copilot Studio qualifier.
+  assert.ok(renderPrettyList(skills, { all: true }).includes("for Copilot Studio"));
 });
 
 // --- Gallery fetch behaviour ------------------------------------------------
@@ -463,7 +463,7 @@ test("surfaces a non-404 metadata failure instead of silently dropping the skill
     },
     status: { "submissions/demo/metadata.json": 500 },
   });
-  await assert.rejects(() => listSkills({ all: true }), /500/);
+  await assert.rejects(() => listSkills(), /500/);
 });
 
 test("surfaces malformed metadata instead of silently dropping the skill", async (t) => {
@@ -474,7 +474,7 @@ test("surfaces malformed metadata instead of silently dropping the skill", async
     },
   });
   await assert.rejects(
-    () => listSkills({ all: true }),
+    () => listSkills(),
     /invalid metadata\.json.*demo/i
   );
 });
@@ -626,4 +626,98 @@ test("treats a missing optional bundle as a successful unpacked download", async
 
   assert.equal(result.zip, null);
   assert.ok(fs.existsSync(path.join(result.dir, "scripts", "run.py")));
+});
+
+// --- Download gate: only catalogued Copilot Studio skills -------------------
+// The gallery holds more than skills (Scout automations, legacy .zip bundles).
+// `download` must refuse everything that is not a genuine, catalogued Copilot
+// Studio Agent Skill, even when a slug is passed straight to it.
+
+test("refuses to download a legacy-zip gallery entry", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  stubGallery(t, { files: { "submissions/legacy/bundle.zip": "PK\u0003\u0004stub" } });
+  await assert.rejects(() => downloadSkill("legacy", root), /legacy-zip entry/i);
+  assert.ok(!fs.existsSync(path.join(root, "legacy")), "a refused entry must write nothing");
+});
+
+test("refuses to download a Scout automation gallery entry", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  stubGallery(t, { files: { "submissions/scout/automation.json": "{}" } });
+  await assert.rejects(() => downloadSkill("scout", root), /automation entry/i);
+});
+
+test("refuses a mixed submission that ships a SKILL.md beside a root automation .json", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  stubGallery(t, {
+    files: {
+      "submissions/mixed/SKILL.md": "---\nname: mixed\n---\n",
+      "submissions/mixed/metadata.json": JSON.stringify({ name: "Mixed", platforms: ["Copilot Studio"] }),
+      "submissions/mixed/automation.json": "{}",
+    },
+  });
+  await assert.rejects(() => downloadSkill("mixed", root), /automation entry/i);
+});
+
+test("refuses a mixed submission that ships a SKILL.md beside a root legacy .zip", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  stubGallery(t, {
+    files: {
+      "submissions/mixedzip/SKILL.md": "---\nname: mixedzip\n---\n",
+      "submissions/mixedzip/metadata.json": JSON.stringify({ name: "MixedZip", platforms: ["Copilot Studio"] }),
+      "submissions/mixedzip/legacy.zip": "PK\u0003\u0004stub",
+    },
+  });
+  await assert.rejects(() => downloadSkill("mixedzip", root), /legacy-zip entry/i);
+});
+
+test("refuses a skill-shaped submission that has no metadata.json", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  stubGallery(t, { files: { "submissions/bare/SKILL.md": "---\nname: bare\n---\n" } });
+  await assert.rejects(() => downloadSkill("bare", root), /no metadata\.json/i);
+});
+
+test("refuses a skill that is not published for Copilot Studio", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "add-skill-test-"));
+  fixtureRoots.push(root);
+  stubGallery(t, {
+    files: {
+      "submissions/other/SKILL.md": "---\nname: other\n---\n",
+      "submissions/other/metadata.json": JSON.stringify({ name: "Other", platforms: ["Microsoft 365 Copilot"] }),
+    },
+  });
+  await assert.rejects(() => downloadSkill("other", root), /not published for Copilot Studio/i);
+  assert.ok(!fs.existsSync(path.join(root, "other")), "a non-Copilot-Studio skill must write nothing");
+});
+
+test("excludes a mixed SKILL.md + root .json submission from the gallery listing", async (t) => {
+  stubGallery(t, {
+    files: {
+      "submissions/mixed/SKILL.md": "---\nname: mixed\n---\n",
+      "submissions/mixed/metadata.json": JSON.stringify({ name: "Mixed", platforms: ["Copilot Studio"] }),
+      "submissions/mixed/automation.json": "{}",
+      "submissions/clean/SKILL.md": "---\nname: clean\n---\n",
+      "submissions/clean/metadata.json": JSON.stringify({ name: "Clean", platforms: ["Copilot Studio"] }),
+    },
+  });
+  const slugs = (await listSkills()).map((s) => s.slug);
+  assert.ok(slugs.includes("clean"), "a clean skill should be listed");
+  assert.ok(!slugs.includes("mixed"), "a mixed submission must not be listed as a skill");
+});
+
+test("never lists a non-Copilot-Studio skill, even though it is a valid skill", async (t) => {
+  stubGallery(t, {
+    files: {
+      "submissions/other/SKILL.md": "---\nname: other\n---\n",
+      "submissions/other/metadata.json": JSON.stringify({ name: "Other", platforms: ["Microsoft 365 Copilot"] }),
+      "submissions/cs/SKILL.md": "---\nname: cs\n---\n",
+      "submissions/cs/metadata.json": JSON.stringify({ name: "CS", platforms: ["Copilot Studio"] }),
+    },
+  });
+  const slugs = (await listSkills()).map((s) => s.slug);
+  assert.deepEqual(slugs, ["cs"], "only the Copilot Studio skill may appear in the listing");
 });

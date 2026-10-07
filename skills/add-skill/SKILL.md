@@ -92,8 +92,10 @@ about paths on the **gallery** branch until it is time to pick a destination (st
    already sorted by display name and limited to skills whose `platforms` include **Copilot Studio**.
    The layout is **deterministic** - a fixed render width and stable sort mean the same gallery data
    always produces the exact same table, regardless of terminal size. The `◆` marks a bundle skill
-   (ships extra `scripts/`, `references/`, or `assets/`); an empty cell is a single `SKILL.md`. Add
-   `--all` only if the user explicitly wants every platform. For programmatic use, plain
+   (ships extra `scripts/`, `references/`, or `assets/`); an empty cell is a single `SKILL.md`. The
+   listing is **always Copilot Studio only** - there is no all-platforms view. If the user asks to
+   see every artifact in the gallery, explain that this tool only works with Copilot Studio skills
+   and show them the Copilot Studio list; do **not** try to widen it. For programmatic use, plain
    `node "<scriptPath>" list` still emits JSON `{ ok, count, skills: [{ slug, name, description,
    platforms, tags, hasBundle }] }`.
 
@@ -191,4 +193,10 @@ Tell the user, concisely:
   transient - report it and offer to retry. Setting `GITHUB_TOKEN` raises the API limit for the one
   tree call, but is not normally required.
 - If the user picks a non-skill catalog entry (a Scout automation or a legacy `.zip`), `download`
-  refuses it with a clear message; relay that and suggest picking an actual skill.
+  refuses it with a clear message; relay that and suggest picking an actual skill. `download` also
+  refuses an entry that is **not a catalogued Copilot Studio skill** even when a slug is passed
+  directly: a submission with no `metadata.json`, one whose metadata `platforms` do not include
+  **Copilot Studio**, or a mixed submission that ships a `SKILL.md` alongside a root-level `.zip` or a
+  non-`metadata.json` root `.json` (treated as a legacy-zip/automation artifact, not a skill). Relay
+  the message and pick a listed Copilot Studio skill instead. The `list` command is Copilot Studio
+  only and has no all-platforms mode, so every slug it shows is already safe to download.

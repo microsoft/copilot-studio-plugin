@@ -7,10 +7,11 @@
  * be added to a Copilot Studio agent.
  *
  * Commands:
- *   list [--all] [--pretty] [--json]
+ *   list [--pretty] [--json]
  *     Enumerate gallery submissions and print the skills as JSON, sorted by
- *     display name. By default only skills whose metadata `platforms` include
- *     "Copilot Studio" are returned; pass --all to include every skill. Pass
+ *     display name. Only skills whose metadata `platforms` include "Copilot
+ *     Studio" are ever returned — this is a Copilot Studio tool, so other-platform
+ *     submissions are always excluded and there is no all-platforms option. Pass
  *     --pretty to render a plain, deterministic (fixed-width) box table instead
  *     of JSON.
  *
@@ -192,14 +193,29 @@ function classify(files) {
   const hasLegacyZip = top.some((f) => f.toLowerCase().endsWith('.zip'));
   const hasRootJson = top.some((f) => f.toLowerCase().endsWith('.json') && !/^metadata\.json$/i.test(f));
 
+  // A clean Agent Skill carries a root SKILL.md and only skill files at the root
+  // (the manifest plus sidecars like metadata.json / README.md). A submission that
+  // ALSO ships a root-level archive or a non-metadata root .json is a different
+  // artifact — a legacy packaged bundle or a Scout automation — or a disguised one,
+  // so it is never promoted to "skill". The gallery add flow must refuse it, which
+  // keeps "only genuine skills are added" true even when markers are mixed.
   let type = 'unknown';
-  if (hasSkill) type = 'skill';
+  if (hasSkill && !hasLegacyZip && !hasRootJson) type = 'skill';
   else if (hasLegacyZip) type = 'legacy-zip';
   else if (hasRootJson) type = 'automation';
 
   // A skill "has a bundle" when it ships payload files beyond SKILL.md.
   const extras = payloadFiles(files).filter((f) => !isSkillFile(f));
   return { type, hasBundle: extras.length > 0 };
+}
+
+// A gallery skill counts as a Copilot Studio skill when its metadata `platforms`
+// include "Copilot Studio" (case-insensitive). Accepts either a raw metadata
+// object or a listed-skill row — both expose a `platforms` array — so the default
+// `list` filter and the `download` gate judge platform the exact same way.
+function isCopilotStudioSkill(meta) {
+  const platforms = meta && Array.isArray(meta.platforms) ? meta.platforms : [];
+  return platforms.some((p) => /copilot studio/i.test(p));
 }
 
 async function readMetadata(slug) {
@@ -222,7 +238,7 @@ async function readMetadata(slug) {
   }
 }
 
-async function listSkills({ all } = {}) {
+async function listSkills() {
   const submissions = await getSubmissions();
   const slugs = [...submissions.keys()];
 
@@ -243,9 +259,11 @@ async function listSkills({ all } = {}) {
       hasBundle: r.info.hasBundle,
     }));
 
-  if (!all) {
-    skills = skills.filter((s) => s.platforms.some((p) => /copilot studio/i.test(p)));
-  }
+  // This is a Copilot Studio tool, so the listing is *always* restricted to skills
+  // published for Copilot Studio — there is no opt-out. Even when a caller asks to
+  // "show everything", other-platform submissions stay out of the gallery view, so
+  // a user can never pick an artifact that `download` would then refuse anyway.
+  skills = skills.filter((s) => isCopilotStudioSkill(s));
 
   // Deterministic ordering: case-insensitive by name using code-point order
   // (locale-independent, unlike localeCompare) with slug as a stable tiebreaker,
@@ -270,6 +288,22 @@ async function downloadSkill(slug, dest) {
     throw new Error(`"${slug}" is a ${info.type} entry, not an unpacked Agent Skill; cannot add it to a Copilot Studio agent.`);
   }
 
+  // Defense in depth for the gallery add flow: only a *catalogued Copilot Studio*
+  // skill may be downloaded, even when a slug is passed straight to `download`
+  // without going through the (already gated) `list`. The submission must carry a
+  // metadata.json — so it is a listable gallery skill, not a loose SKILL.md — whose
+  // `platforms` include Copilot Studio. This mirrors the default `list` gate so a
+  // raw slug cannot pull an artifact the gallery would never surface for Copilot
+  // Studio. Resolve it before touching the filesystem so a rejected entry writes
+  // nothing.
+  const meta = await readMetadata(slug);
+  if (!meta) {
+    throw new Error(`"${slug}" has no metadata.json in the Cat Agent Skills gallery, so it is not a catalogued Agent Skill; cannot add it to a Copilot Studio agent.`);
+  }
+  if (!isCopilotStudioSkill(meta)) {
+    throw new Error(`"${slug}" is not published for Copilot Studio in the Cat Agent Skills gallery (its metadata platforms do not include "Copilot Studio"); cannot add it to a Copilot Studio agent.`);
+  }
+
   const skillDir = path.resolve(dest, slug);
   const destRoot = path.resolve(dest);
   if (skillDir !== destRoot && !skillDir.startsWith(destRoot + path.sep)) {
@@ -279,7 +313,6 @@ async function downloadSkill(slug, dest) {
   if (bundleFile !== destRoot && !bundleFile.startsWith(destRoot + path.sep)) {
     throw new Error(`Refusing to download "${slug}": its bundle does not resolve inside ${destRoot}.`);
   }
-  const meta = await readMetadata(slug);
   fs.mkdirSync(destRoot, { recursive: true });
   const stagingRoot = fs.mkdtempSync(path.join(destRoot, '.add-skill-download-'));
   const stagingSkillDir = path.join(stagingRoot, 'skill');
@@ -769,7 +802,7 @@ function fitCell(text, width, align) {
   return align === 'right' ? pad + s : s + pad;
 }
 
-function renderPrettyList(skills, { width = PRETTY_WIDTH, all = false } = {}) {
+function renderPrettyList(skills, { width = PRETTY_WIDTH } = {}) {
   const term = Math.max(72, Math.min(width, 200));
   const wNum = Math.max(2, String(skills.length).length);
   const wBundle = 1;
@@ -807,7 +840,7 @@ function renderPrettyList(skills, { width = PRETTY_WIDTH, all = false } = {}) {
   });
   out.push(rule('└', '┴', '┘'));
 
-  const heading = `Cat Agent Skills  ${skills.length} skills${all ? '' : ' for Copilot Studio'}`;
+  const heading = `Cat Agent Skills  ${skills.length} skills for Copilot Studio`;
   const legend = '◆ = bundle (ships scripts / references / assets) · others are a single SKILL.md';
 
   return `\n${heading}\n\n${out.join('\n')}\n\n${legend}`;
@@ -838,9 +871,11 @@ async function main() {
   const cmd = args._[0];
 
   if (cmd === 'list') {
-    const skills = await listSkills({ all: !!args.all });
+    // The listing is always Copilot Studio only; a stray --all is accepted but has
+    // no effect, so asking to "show everything" still sticks to Copilot Studio.
+    const skills = await listSkills();
     if (args.pretty) {
-      process.stdout.write(renderPrettyList(skills, { all: !!args.all }) + '\n');
+      process.stdout.write(renderPrettyList(skills) + '\n');
       return;
     }
     process.stdout.write(JSON.stringify({ ok: true, count: skills.length, skills }, null, 2) + '\n');
