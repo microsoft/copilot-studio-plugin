@@ -21,35 +21,30 @@ bundle skills) so the on-disk layout matches a Copilot Studio portal import. Imp
 materializes files on disk; **publishing to the cloud is done from the VS Code Copilot Studio
 extension** (Agent Changes view / sync push) afterward - this skill never pushes.
 
+> **Note — this is a different pipeline from the PAC CLI skills in this plugin.** `add-skill` targets
+> a **VS Code Copilot Studio extension** workspace (a cloned agent folder containing
+> `settings.mcs.yml` + `agent.sync.yaml`) and only materializes files on disk; it does **not** push
+> or publish through the Power Platform CLI the way this plugin's `push-agent` (`pac copilot push`)
+> and `publish-agent` (`pac copilot publish`) skills do. Publishing an imported skill is done from
+> the VS Code extension. Use `add-skill` only when your agent is a cloned extension workspace, not a
+> PAC-only project.
+
 Initial request: $ARGUMENTS
 
 ## Authoritative schema — read this before importing
 
 The exact YAML for every skill component, the `behaviors/` file layout, anchor/sidecar rules, folder
-naming, and schema-name conventions live in a single shared reference —
-**`reference/skill-schema.md`**. It is the source of truth; the `copilot-studio-architect` agent and
+naming, and schema-name conventions live in **`references/skill-schema.md`**, bundled in this
+skill's directory. It is the source of truth; the `copilot-studio-architect` agent and the bundled
 `scripts/add-skill.js` use the same file, so the three never drift. **Read it before step 5** and
 follow it exactly.
-
-Resolve its path via the plugin root: read
-`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` for the
-current `mcs-assistant` plugin, then read `path.join(pluginRoot, 'reference', 'skill-schema.md')`.
-If `plugin-paths.json` cannot be read, fall back to locating `reference/skill-schema.md` under the
-installed plugin directory.
 
 ---
 
 ## 1. Locate the helper script (non-blocking)
 
-Resolve `scripts/add-skill.js` inside this installed plugin. In order:
-
-1. Read `path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` and use its
-   `pluginRoot` -> `path.join(pluginRoot, 'scripts', 'add-skill.js')`.
-2. If that file is unavailable, fall back to `${CLAUDE_PLUGIN_ROOT}/scripts/add-skill.js` when the env
-   var is set.
-3. Otherwise `Glob: **/scripts/add-skill.js` under the plugin directory.
-
-Use this absolute path for every `node` invocation below.
+The helper script `scripts/add-skill.js` is bundled in this skill's directory. Resolve its absolute
+path (call it `<scriptPath>`) from the skill root and use it for every `node` invocation below.
 
 ## 2. Choose the source (blocking)
 
@@ -131,7 +126,7 @@ Import writes the skill under `behaviors/<name>/`: the manifest as `SKILL.md` an
 file (e.g. `scripts/`) copied verbatim. By default it then also emits the **portal-style `.mcs.yml`
 companions** — an anchor `skill.mcs.yml` plus, for bundle skills, one sidecar per non-manifest
 payload file — so the on-disk layout matches a Copilot Studio portal import. The script owns those
-shapes; `reference/skill-schema.md` documents them.
+shapes; `references/skill-schema.md` documents them.
 
 Every component's schema name is prefixed with the agent `schemaName` read from the workspace
 `settings.mcs.yml`. If that value is missing, or is not a usable Dataverse prefix - or you pass
