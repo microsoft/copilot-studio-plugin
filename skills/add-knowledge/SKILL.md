@@ -19,16 +19,10 @@ Supports four source kinds: **Public Website**, **SharePoint**, **OneDrive**, an
 ## Authoritative schema — read this first
 
 The exact YAML for every source kind, the `capabilities/knowledge` file layout, filename
-conventions, SharePoint/OneDrive URL normalization, best practices, and limitations live in a single
-shared reference — **`reference/knowledge-schema.md`**. It is the source of truth; the
-`copilot-studio-architect` agent uses the same file, so the two never drift. **Read it before writing
-any YAML** and follow it exactly.
-
-Resolve its path via the plugin root: read
-`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` to get `pluginRoot` for the
-current `mcs-assistant` plugin, then read `path.join(pluginRoot, 'reference', 'knowledge-schema.md')`.
-If `plugin-paths.json` cannot be read, fall back to locating `reference/knowledge-schema.md` under the
-installed plugin directory.
+conventions, SharePoint/OneDrive URL normalization, best practices, and limitations live in
+**`references/knowledge-schema.md`**, bundled in this skill's directory. It is the source of truth;
+the `copilot-studio-architect` agent reads the same file, so the two never drift. **Read it before
+writing any YAML** and follow it exactly.
 
 ---
 
@@ -53,7 +47,7 @@ Extract from `$ARGUMENTS`:
 - The **URL** or **local file path** of the source.
 - An optional **name** and/or **description**.
 
-### 3. Classify, build, and save (per `reference/knowledge-schema.md`)
+### 3. Classify, build, and save (per `references/knowledge-schema.md`)
 
 1. **Classify** the input into one of the four source kinds:
    - Require every URL source to be absolute HTTPS with no embedded username or password.
@@ -110,12 +104,11 @@ at runtime using **each end user's** permissions. This check runs as the author,
 confirms **your** access only — it does **not** guarantee end users of the agent can access the item.
 Always pair the result with a reminder to ensure end users have access in SharePoint/OneDrive.
 
-**How to run it.** Resolve `pluginRoot` from
-`path.join(os.homedir(), '.copilot-studio-cli', 'plugin-paths.json')` (as in step "Authoritative
-schema" above), then:
+**How to run it.** The script `scripts/verify-knowledge-access.bundle.js` is bundled in this skill's
+directory; resolve its absolute path from the skill root (call it `<scriptPath>`), then:
 
 ```bash
-node "<pluginRoot>/scripts/verify-knowledge-access.bundle.js" --agent-dir "<agentDir>" "<url>"
+node "<scriptPath>" --agent-dir "<agentDir>" "<url>"
 ```
 
 - Add `--dry-run` to resolve the plan (encoded share id, Graph endpoint, scopes, `needsClientId`)

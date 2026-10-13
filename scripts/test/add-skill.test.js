@@ -14,7 +14,7 @@ const {
   readAgentSchemaPrefix,
   renderPrettyList,
   yamlScalar,
-} = require("../add-skill");
+} = require("../../skills/add-skill/scripts/add-skill");
 
 // Every fixture root created during the run, removed once the file is done so a
 // test pass does not leave a trail of mkdtemp directories behind in the OS temp dir.

@@ -197,8 +197,10 @@ For guided design, classify each accepted requirement:
   operation, input/output, authentication, and connection-reference metadata;
 - supported agent-level configuration -> settings.
 
-Before writing knowledge or skills, read and follow `reference/knowledge-schema.md` or
-`reference/skill-schema.md` from this plugin. Every authored `*.mcs.yml` component must follow its
+Before writing knowledge or skills, read and follow
+`skills/add-knowledge/references/knowledge-schema.md` or
+`skills/add-skill/references/skill-schema.md` from this plugin. Every authored `*.mcs.yml` component
+must follow its
 authoritative schema and contain `mcs.metadata`. Require `kind` only when that component schema
 defines it. Uploaded-file knowledge sidecars and uploaded-skill payload sidecars are metadata-only
 and must omit `kind`; uploaded-file knowledge sidecars must also omit `source`.

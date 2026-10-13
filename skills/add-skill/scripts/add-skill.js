@@ -41,9 +41,8 @@
  * library only. Optional GITHUB_TOKEN / GH_TOKEN raises the api.github.com rate
  * limit for the single tree call.
  *
- * The component shapes this script emits are documented in
- * reference/skill-schema.md. Keep the two in sync: that file is what the
- * /add-skill command and the copilot-studio-architect agent read.
+ * The component shapes this script emits are documented in the skill's
+ * references/skill-schema.md. Keep the implementation and schema in sync.
  */
 
 const fs = require('fs');
@@ -83,7 +82,7 @@ const CLI_AGENT_TEMPLATE_PREFIX = 'cliagent-';
 // payload file gets a "<file>.mcs.yml" sidecar next to it.
 const SKILL_ANCHOR = 'skill.mcs.yml';
 const MCS_SIDECAR_SUFFIX = '.mcs.yml';
-// Dataverse caps a schema name at 100 characters. See reference/skill-schema.md.
+// Dataverse caps a schema name at 100 characters. See the skill's references/skill-schema.md.
 const SCHEMA_NAME_MAX = 100;
 // Windows reserved device names — unusable as a folder name there.
 const RESERVED_DEVICE_NAMES = new Set([
