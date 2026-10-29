@@ -14,7 +14,7 @@
     "build:eval-api": "esbuild src/eval-api.js --bundle --platform=node --target=node18 --outfile=eval-api.bundle.js --format=cjs"
   },
   "dependencies": {
-    "@azure/msal-node": "^5.4.1",
+    "@azure/msal-node": "^7.1.0",
     "@microsoft/agents-activity": "^1.6.1",
     "@microsoft/agents-copilotstudio-client": "^1.6.1",
     "@opentelemetry/api": "^1.9.1",
